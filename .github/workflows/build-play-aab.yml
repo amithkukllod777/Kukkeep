@@ -1,0 +1,177 @@
+name: Build KukKeep Play Store AAB
+
+# Builds a SIGNED release Android App Bundle (.aab) for Google Play. This repo IS
+# the app (pubspec.yaml at root). Signing uses a stable upload keystore provided
+# via repo Secrets (never committed).
+#
+# Required repository Secrets (Settings → Secrets and variables → Actions):
+#   KUKKEEP_KEYSTORE_BASE64  — base64 of the upload keystore (.jks)
+#   KUKKEEP_STORE_PASSWORD   — keystore password
+#   KUKKEEP_KEY_PASSWORD     — key password (same value if created together)
+#   KUKKEEP_KEY_ALIAS        — key alias (e.g. kukkeep)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify signing secrets are configured
+        run: |
+          if [ -z "${{ secrets.KUKKEEP_KEYSTORE_BASE64 }}" ]; then
+            echo "::error::KUKKEEP_KEYSTORE_BASE64 secret is missing. Add the 4 KUKKEEP_* secrets (see workflow header) before running."
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.4"
+          channel: stable
+          cache: true
+
+      - name: Generate native platform scaffolding (keeps lib/ + pubspec)
+        run: flutter create --org com.kuklabs --project-name kukkeep --platforms=android .
+
+      - name: Patch generated Gradle build file (afterEvaluate compatibility)
+        run: |
+          if grep -q "afterEvaluate" android/build.gradle.kts 2>/dev/null; then
+            sed -i '/afterEvaluate/,/^}/d' android/build.gradle.kts
+          fi
+
+      - name: Enable core-library desugaring (required by flutter_local_notifications)
+        run: |
+          A=android/app/build.gradle.kts
+          if ! grep -q "isCoreLibraryDesugaringEnabled" "$A"; then
+            sed -i 's/compileOptions {/compileOptions {\n        isCoreLibraryDesugaringEnabled = true/' "$A"
+          fi
+          if ! grep -q "desugar_jdk_libs" "$A"; then
+            cat >> "$A" <<'KTS'
+
+          dependencies {
+              coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+          }
+          KTS
+          fi
+
+      - name: Set package name to com.kuklabs.keep + wire Firebase (google-services)
+        run: |
+          A=android/app/build.gradle.kts
+          S=android/settings.gradle.kts
+          sed -i 's/applicationId = "com.kuklabs.kukkeep"/applicationId = "com.kuklabs.keep"/' "$A"
+          cp google-services.json android/app/google-services.json
+          grep -q 'com.google.gms.google-services' "$S" || \
+            sed -i 's#id("com.android.application") version \(".*"\) apply false#id("com.android.application") version \1 apply false\n    id("com.google.gms.google-services") version "4.4.2" apply false#' "$S"
+          grep -q 'com.google.gms.google-services' "$A" || \
+            sed -i 's#id("com.android.application")#id("com.android.application")\n    id("com.google.gms.google-services")#' "$A"
+
+      - name: Configure release signing (upload keystore from Secrets)
+        env:
+          KEYSTORE_B64: ${{ secrets.KUKKEEP_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.KUKKEEP_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KUKKEEP_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KUKKEEP_KEY_ALIAS }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > android/app/upload-keystore.jks
+          cat > android/key.properties <<PROPS
+          storeFile=upload-keystore.jks
+          storePassword=${STORE_PASSWORD}
+          keyAlias=${KEY_ALIAS}
+          keyPassword=${KEY_PASSWORD}
+          PROPS
+          cat >> android/app/build.gradle.kts <<'KTS'
+
+          // ── Release signing for Google Play (injected in CI) ──
+          android {
+              signingConfigs {
+                  create("upload") {
+                      val kp = java.util.Properties()
+                      val kpf = rootProject.file("key.properties")
+                      if (kpf.exists()) {
+                          kp.load(kpf.inputStream())
+                          storeFile = file(kp.getProperty("storeFile"))
+                          storePassword = kp.getProperty("storePassword")
+                          keyAlias = kp.getProperty("keyAlias")
+                          keyPassword = kp.getProperty("keyPassword")
+                      }
+                  }
+              }
+              buildTypes {
+                  getByName("release") {
+                      signingConfig = signingConfigs.getByName("upload")
+                  }
+              }
+          }
+          KTS
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Generate launcher icon from the KukLabs logo
+        run: dart run flutter_launcher_icons
+
+      - name: Set app display name to "KukKeep"
+        run: |
+          sed -i 's/android:label="[^"]*"/android:label="KukKeep"/' android/app/src/main/AndroidManifest.xml
+
+      - name: Add permissions (network, notifications, exact alarms, boot)
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.INTERNET' "$M" || \
+            sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET"/>\n    <application|' "$M"
+          grep -q 'android.permission.POST_NOTIFICATIONS' "$M" || \
+            sed -i 's|<application|<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n    <application|' "$M"
+          grep -q 'android.permission.USE_EXACT_ALARM' "$M" || \
+            sed -i 's|<application|<uses-permission android:name="android.permission.USE_EXACT_ALARM"/>\n    <application|' "$M"
+          grep -q 'android.permission.SCHEDULE_EXACT_ALARM' "$M" || \
+            sed -i 's|<application|<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>\n    <application|' "$M"
+          grep -q 'android.permission.RECEIVE_BOOT_COMPLETED' "$M" || \
+            sed -i 's|<application|<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>\n    <application|' "$M"
+
+      - name: Add kukkeep:// deep-link intent filter + browser queries (Google sign-in)
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q 'android:scheme="kukkeep"' "$M" || \
+            sed -i 's|</activity>|    <intent-filter>\n                <action android:name="android.intent.action.VIEW"/>\n                <category android:name="android.intent.category.DEFAULT"/>\n                <category android:name="android.intent.category.BROWSABLE"/>\n                <data android:scheme="kukkeep" android:host="auth"/>\n            </intent-filter>\n        </activity>|' "$M"
+          if grep -q '<queries>' "$M"; then
+            grep -q 'android:scheme="https"' "$M" || \
+              sed -i '0,/<queries>/s||<queries>\n        <intent>\n            <action android:name="android.intent.action.VIEW"/>\n            <data android:scheme="https"/>\n        </intent>|' "$M"
+          else
+            sed -i 's|<application|<queries>\n        <intent>\n            <action android:name="android.intent.action.VIEW"/>\n            <data android:scheme="https"/>\n        </intent>\n    </queries>\n    <application|' "$M"
+          fi
+
+      - name: Build signed release AAB
+        run: flutter build appbundle --release
+
+      - name: Stage AAB
+        run: |
+          mkdir -p out
+          cp build/app/outputs/bundle/release/app-release.aab "out/KukKeep-${{ github.run_number }}.aab"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kukkeep-aab
+          path: out/KukKeep-${{ github.run_number }}.aab
+
+      - name: Publish to "aab-latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: aab-latest
+          name: KukKeep Play Store AAB (latest)
+          body: |
+            Signed Google Play App Bundle for **KukKeep** (com.kuklabs.keep).
+            Upload **KukKeep-${{ github.run_number }}.aab** in Play Console →
+            Production/Testing → Create release.
+          files: |
+            out/KukKeep-${{ github.run_number }}.aab

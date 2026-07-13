@@ -1,0 +1,128 @@
+name: Build KukKeep Flutter APK
+
+# Builds the native Flutter KukKeep app (this repo IS the app — pubspec.yaml at
+# root) and publishes the APK to the "flutter-latest" release. The native
+# android/ scaffolding is generated fresh by `flutter create` here.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.4"   # default compileSdk 36 + AGP 9.0.1; pinned for reproducible builds
+          channel: stable
+          cache: true
+
+      - name: Generate native platform scaffolding (keeps lib/ + pubspec)
+        run: flutter create --org com.kuklabs --project-name kukkeep --platforms=android .
+
+      - name: Patch generated Gradle build file (afterEvaluate compatibility)
+        run: |
+          if grep -q "afterEvaluate" android/build.gradle.kts 2>/dev/null; then
+            sed -i '/afterEvaluate/,/^}/d' android/build.gradle.kts
+          fi
+
+      - name: Enable core-library desugaring (required by flutter_local_notifications)
+        run: |
+          A=android/app/build.gradle.kts
+          if ! grep -q "isCoreLibraryDesugaringEnabled" "$A"; then
+            sed -i 's/compileOptions {/compileOptions {\n        isCoreLibraryDesugaringEnabled = true/' "$A"
+          fi
+          if ! grep -q "desugar_jdk_libs" "$A"; then
+            cat >> "$A" <<'KTS'
+
+          dependencies {
+              coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+          }
+          KTS
+          fi
+
+      - name: Set package name to com.kuklabs.keep + wire Firebase (google-services)
+        run: |
+          A=android/app/build.gradle.kts
+          S=android/settings.gradle.kts
+          sed -i 's/applicationId = "com.kuklabs.kukkeep"/applicationId = "com.kuklabs.keep"/' "$A"
+          cp google-services.json android/app/google-services.json
+          grep -q 'com.google.gms.google-services' "$S" || \
+            sed -i 's#id("com.android.application") version \(".*"\) apply false#id("com.android.application") version \1 apply false\n    id("com.google.gms.google-services") version "4.4.2" apply false#' "$S"
+          grep -q 'com.google.gms.google-services' "$A" || \
+            sed -i 's#id("com.android.application")#id("com.android.application")\n    id("com.google.gms.google-services")#' "$A"
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Generate launcher icon from the KukLabs logo
+        run: dart run flutter_launcher_icons
+
+      - name: Set app display name to "KukKeep"
+        run: |
+          sed -i 's/android:label="[^"]*"/android:label="KukKeep"/' android/app/src/main/AndroidManifest.xml
+
+      - name: Add permissions (network, notifications, exact alarms, boot)
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.INTERNET' "$M" || \
+            sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET"/>\n    <application|' "$M"
+          grep -q 'android.permission.POST_NOTIFICATIONS' "$M" || \
+            sed -i 's|<application|<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n    <application|' "$M"
+          grep -q 'android.permission.USE_EXACT_ALARM' "$M" || \
+            sed -i 's|<application|<uses-permission android:name="android.permission.USE_EXACT_ALARM"/>\n    <application|' "$M"
+          grep -q 'android.permission.SCHEDULE_EXACT_ALARM' "$M" || \
+            sed -i 's|<application|<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>\n    <application|' "$M"
+          grep -q 'android.permission.RECEIVE_BOOT_COMPLETED' "$M" || \
+            sed -i 's|<application|<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>\n    <application|' "$M"
+
+      - name: Add kukkeep:// deep-link intent filter + browser queries (Google sign-in)
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q 'android:scheme="kukkeep"' "$M" || \
+            sed -i 's|</activity>|    <intent-filter>\n                <action android:name="android.intent.action.VIEW"/>\n                <category android:name="android.intent.category.DEFAULT"/>\n                <category android:name="android.intent.category.BROWSABLE"/>\n                <data android:scheme="kukkeep" android:host="auth"/>\n            </intent-filter>\n        </activity>|' "$M"
+          if grep -q '<queries>' "$M"; then
+            grep -q 'android:scheme="https"' "$M" || \
+              sed -i '0,/<queries>/s||<queries>\n        <intent>\n            <action android:name="android.intent.action.VIEW"/>\n            <data android:scheme="https"/>\n        </intent>|' "$M"
+          else
+            sed -i 's|<application|<queries>\n        <intent>\n            <action android:name="android.intent.action.VIEW"/>\n            <data android:scheme="https"/>\n        </intent>\n    </queries>\n    <application|' "$M"
+          fi
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Stage APK with a fresh per-build name
+        run: |
+          mkdir -p out
+          cp build/app/outputs/flutter-apk/app-release.apk out/KukKeep-flutter.apk
+          cp build/app/outputs/flutter-apk/app-release.apk "out/KukKeep-flutter-r${{ github.run_number }}.apk"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kukkeep-flutter-apk
+          path: out/KukKeep-flutter-r${{ github.run_number }}.apk
+
+      - name: Publish to "flutter-latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: flutter-latest
+          name: KukKeep (native Flutter, latest)
+          body: |
+            Native Flutter build of KukKeep — notes, checklists & reminders that
+            sync to your KukLabs account (connects to keep.kuklabs.com over HTTPS).
+
+            Install **KukKeep-flutter-r${{ github.run_number }}.apk** (fresh URL, never cached).
+          files: |
+            out/KukKeep-flutter.apk
+            out/KukKeep-flutter-r${{ github.run_number }}.apk

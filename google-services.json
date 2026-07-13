@@ -1,0 +1,142 @@
+{
+  "project_info": {
+    "project_number": "453785771828",
+    "project_id": "kukchat-b6402",
+    "storage_bucket": "kukchat-b6402.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:453785771828:android:d9ab27b94d2884f4e74f61",
+        "android_client_info": {
+          "package_name": "com.kukbook.erp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "453785771828-la4hutbev4qqbtblf2gn7a62c35453nd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.kukbook.erp",
+            "certificate_hash": "67663702d8fef587326f3a712da24dc4165c5d64"
+          }
+        },
+        {
+          "client_id": "453785771828-vl6qhgpn0qhm7nrtnl0vr330kfcv0soa.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKs1PhjIpjsA6TFGY9su-7DUzKTFeb8pA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "453785771828-pfk8msf757ovraootgqavbmb8hf7uknt.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:453785771828:android:6c8987ab17b9c093e74f61",
+        "android_client_info": {
+          "package_name": "com.kukchat.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "453785771828-vdfo4bdm7ogrmquhvn7p2l40b33pr88e.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.kukchat.app",
+            "certificate_hash": "4b8de5c92d826c218b7c204933ecbebb3487064b"
+          }
+        },
+        {
+          "client_id": "453785771828-vl6qhgpn0qhm7nrtnl0vr330kfcv0soa.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKs1PhjIpjsA6TFGY9su-7DUzKTFeb8pA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "453785771828-pfk8msf757ovraootgqavbmb8hf7uknt.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:453785771828:android:02b020dd85bd6a25e74f61",
+        "android_client_info": {
+          "package_name": "com.kuklabs.keep"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "453785771828-vl6qhgpn0qhm7nrtnl0vr330kfcv0soa.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKs1PhjIpjsA6TFGY9su-7DUzKTFeb8pA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "453785771828-pfk8msf757ovraootgqavbmb8hf7uknt.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:453785771828:android:eed57920846cadb9e74f61",
+        "android_client_info": {
+          "package_name": "com.kuklabs.task"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "453785771828-vl6qhgpn0qhm7nrtnl0vr330kfcv0soa.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKs1PhjIpjsA6TFGY9su-7DUzKTFeb8pA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "453785771828-pfk8msf757ovraootgqavbmb8hf7uknt.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
