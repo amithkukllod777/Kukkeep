@@ -78,41 +78,20 @@ jobs:
       - name: Configure release signing (upload keystore from Secrets)
         env:
           KEYSTORE_B64: ${{ secrets.KUKKEEP_KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.KUKKEEP_STORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KUKKEEP_KEY_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KUKKEEP_KEY_ALIAS }}
         run: |
           echo "$KEYSTORE_B64" | base64 -d > android/app/upload-keystore.jks
-          cat > android/key.properties <<PROPS
-          storeFile=upload-keystore.jks
-          storePassword=${STORE_PASSWORD}
-          keyAlias=${KEY_ALIAS}
-          keyPassword=${KEY_PASSWORD}
-          PROPS
-          cat >> android/app/build.gradle.kts <<'KTS'
-
-          // ── Release signing for Google Play (injected in CI) ──
-          android {
-              signingConfigs {
-                  create("upload") {
-                      val kp = java.util.Properties()
-                      val kpf = rootProject.file("key.properties")
-                      if (kpf.exists()) {
-                          kp.load(kpf.inputStream())
-                          storeFile = file(kp.getProperty("storeFile"))
-                          storePassword = kp.getProperty("storePassword")
-                          keyAlias = kp.getProperty("keyAlias")
-                          keyPassword = kp.getProperty("keyPassword")
-                      }
-                  }
-              }
-              buildTypes {
-                  getByName("release") {
-                      signingConfig = signingConfigs.getByName("upload")
-                  }
-              }
-          }
-          KTS
+          A=android/app/build.gradle.kts
+          # Inject the "upload" signing config into the EXISTING android{} block:
+          # a second appended android{} block trips AGP 9's new DSL, and inside the
+          # extension lambda `java` resolves to the Gradle java extension (so
+          # java.util.Properties is unresolvable) — read the secrets from the
+          # environment instead (provided on the build step below).
+          sed -i '0,/^android {/s//android {\n    signingConfigs {\n        create("upload") {\n            storeFile = file("upload-keystore.jks")\n            storePassword = System.getenv("KUKKEEP_STORE_PASSWORD")\n            keyAlias = System.getenv("KUKKEEP_KEY_ALIAS")\n            keyPassword = System.getenv("KUKKEEP_KEY_PASSWORD")\n        }\n    }/' "$A"
+          # Point the release build type at the upload key (template signs with debug).
+          sed -i 's/signingConfig = signingConfigs.getByName("debug")/signingConfig = signingConfigs.getByName("upload")/' "$A"
+          grep -q 'create("upload")' "$A" || { echo "::error::signingConfigs injection failed"; sed -n '1,40p' "$A"; exit 1; }
+          grep -q 'signingConfigs.getByName("upload")' "$A" || { echo "::error::release buildType not wired to the upload key"; grep -n 'signingConfig' "$A"; exit 1; }
+          echo "--- signing wired ---"; grep -n 'signingConfigs\|upload' "$A" | head
 
       - name: Pub get
         run: flutter pub get
@@ -151,6 +130,10 @@ jobs:
           fi
 
       - name: Build signed release AAB
+        env:
+          KUKKEEP_STORE_PASSWORD: ${{ secrets.KUKKEEP_STORE_PASSWORD }}
+          KUKKEEP_KEY_PASSWORD: ${{ secrets.KUKKEEP_KEY_PASSWORD }}
+          KUKKEEP_KEY_ALIAS: ${{ secrets.KUKKEEP_KEY_ALIAS }}
         run: flutter build appbundle --release
 
       - name: Stage AAB
