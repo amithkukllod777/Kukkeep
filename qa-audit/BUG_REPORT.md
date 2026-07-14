@@ -10,6 +10,12 @@ manually re-run on a device. Security-flavored bugs are cross-referenced to
 
 ### BUG-001 — Note editor silently discards unsaved edits when the back-button save fails
 
+- **Status: FIXED** (branch `claude/kukkeep-fix-critical-bugs`) — `_onBack()`
+  no longer performs its own unconditional pop; it now simply delegates to
+  `_save()`, which already correctly pops only on success/an untouched empty
+  new note and stays put (showing the error) when the save throws. Not
+  re-verified on a device (no toolchain in this environment) — see the new
+  test recommendation in `MISSING_TESTS.md` #1.
 - **Module:** Notes / Note editor
 - **Environment:** Any Android device, any network condition where the save
   request errors (offline, server 5xx, timeout)
@@ -45,7 +51,14 @@ manually re-run on a device. Security-flavored bugs are cross-referenced to
 
 ### BUG-002 — Raw exception text shown to users in 19 call sites outside the auth screens
 
-- **Module:** Notes, Note editor, AI Memory, OTP verification
+- **Status: FIXED** (branch `claude/kukkeep-fix-critical-bugs`) — added a
+  general-purpose `friendlyError(Object e)` to `lib/auth_messages.dart`
+  (delegates to the existing `friendlyAuthError` with `signIn: false`) and
+  routed all 20 call sites (the 19 originally found, plus one more found by a
+  follow-up sweep for string-interpolated `$e` in `draw_screen.dart:60`,
+  which the original `e.toString()` grep missed) through it. Covered by new
+  tests in `test/auth_messages_test.dart`'s `friendlyError` group.
+- **Module:** Notes, Note editor, AI Memory, OTP verification, Drawing
 - **Environment:** Any
 - **Preconditions:** Any network/API error while using notes, editing, OCR/
   attachment upload, AI actions, or OTP verify/resend
@@ -108,13 +121,21 @@ manually re-run on a device. Security-flavored bugs are cross-referenced to
 
 ### BUG-004 — Logout does not revoke the session server-side
 
+- **Status: PARTIALLY FIXED** (branch `claude/kukkeep-fix-critical-bugs`) —
+  confirmed via a backend read (`kukbook-erp`) that `auth.logout` exists and
+  `Api.logout()` now calls it (best-effort) before clearing local state.
+  However, `auth.logout` only clears its own httpOnly session cookie — the
+  Bearer token KukKeep actually uses is a **stateless JWT with no
+  server-side revocation list or session table**, so calling it does not,
+  and currently cannot, invalidate the token itself; it only logs a security
+  event. See `SECURITY_AUDIT.md` SEC-002 (updated) for the full picture and
+  what a real fix would require (backend work, out of this repo's scope).
 - **Module:** Auth / Session management
-- **Severity:** Major (security)
-- **Priority:** P1
-- **Details:** See `SECURITY_AUDIT.md` SEC-002 for the full write-up.
-  `Api.logout()` (`lib/api.dart:43-51`) only clears local `SharedPreferences`;
-  no HTTP call is made to invalidate the Bearer token server-side.
-- **Evidence:** `lib/api.dart:43-51`
+- **Severity:** Major (security) — downgraded in practice by the client-side
+  fix (a security event is now logged on logout) but the underlying token
+  is still not revocable
+- **Priority:** P1 (client-side done; the real fix is a `kukbook-erp` item)
+- **Evidence:** `lib/api.dart` `logout()`
 
 ---
 
@@ -251,19 +272,19 @@ manually re-run on a device. Security-flavored bugs are cross-referenced to
 
 ## Severity/priority summary
 
-| ID | Title | Severity | Priority |
-|---|---|---|---|
-| BUG-001 | Silent data loss on back-nav save failure | Critical | P0 |
-| BUG-002 | Raw error text in 19 non-auth call sites | Major | P1 |
-| BUG-004 | Logout doesn't revoke server session | Major | P1 |
-| BUG-003 | Search scoped to current view only | Minor | P2 |
-| BUG-007 | Icon-only controls lack accessible labels | Minor | P2 |
-| BUG-008 | No disk cache for attachment images | Minor | P2 |
-| BUG-011 | No workspace switcher after login | Minor–Medium | P2 |
-| BUG-005 | Unconditional save on every editor exit | Minor | P3 |
-| BUG-006 | FCM token never registered (broadcast-only push) | Minor | P3 |
-| BUG-009 | `use_build_context_synchronously` lint disabled | Cosmetic/Minor | P3 |
-| BUG-010 | No draft autosave | Minor | P3 |
+| ID | Title | Severity | Priority | Status |
+|---|---|---|---|---|
+| BUG-001 | Silent data loss on back-nav save failure | Critical | P0 | **FIXED** |
+| BUG-002 | Raw error text in 19 (+1) non-auth call sites | Major | P1 | **FIXED** |
+| BUG-004 | Logout doesn't revoke server session | Major | P1 | **PARTIALLY FIXED** (client now calls `auth.logout`; token itself is not server-revocable — backend gap) |
+| BUG-003 | Search scoped to current view only | Minor | P2 | Open |
+| BUG-007 | Icon-only controls lack accessible labels | Minor | P2 | Open |
+| BUG-008 | No disk cache for attachment images | Minor | P2 | Open |
+| BUG-011 | No workspace switcher after login | Minor–Medium | P2 | Open |
+| BUG-005 | Unconditional save on every editor exit | Minor | P3 | Open |
+| BUG-006 | FCM token never registered (broadcast-only push) | Minor | P3 | Open |
+| BUG-009 | `use_build_context_synchronously` lint disabled | Cosmetic/Minor | P3 | Open |
+| BUG-010 | No draft autosave | Minor | P3 | Open |
 
 No Blocker-severity bugs were found. One Critical (data loss) bug (BUG-001)
 and two Major bugs (BUG-002, BUG-004) should be fixed before the next Play

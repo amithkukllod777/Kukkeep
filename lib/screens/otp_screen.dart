@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../api.dart';
+import '../auth_messages.dart';
 import '../note_colors.dart';
 import 'notes_screen.dart';
 
@@ -55,7 +56,7 @@ class _OtpScreenState extends State<OtpScreen> {
         (route) => false,
       );
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = friendlyError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -69,7 +70,7 @@ class _OtpScreenState extends State<OtpScreen> {
       setState(() => _info = 'A new code has been sent.');
       _startCooldown();
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = friendlyError(e));
     }
   }
 

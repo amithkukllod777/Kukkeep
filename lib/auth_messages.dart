@@ -76,3 +76,8 @@ String friendlyAuthError(Object e, {bool signIn = false}) {
   }
   return AuthMessages.genericFallback;
 }
+
+/// Same friendly-error policy as [friendlyAuthError], for use outside the
+/// auth flow (notes, attachments, AI actions, OTP, …) where the sign-in-only
+/// [friendlyAuthError.signIn] behavior doesn't apply.
+String friendlyError(Object e) => friendlyAuthError(e);

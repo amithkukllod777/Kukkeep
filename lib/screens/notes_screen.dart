@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api.dart';
+import '../auth_messages.dart';
 import '../models.dart';
 import '../note_colors.dart';
 import '../notifications.dart';
@@ -82,9 +83,9 @@ class _NotesScreenState extends State<NotesScreen> {
       _rescheduleReminders(live); // keep OS reminders in sync with the notes
     } on ApiError catch (e) {
       if (e.unauthorized) { _logout(); return; }
-      if (mounted) setState(() => _error = e.message);
+      if (mounted) setState(() => _error = friendlyError(e));
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = friendlyError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -152,7 +153,7 @@ class _NotesScreenState extends State<NotesScreen> {
       if (patch['archived'] == true) Notifications.instance.cancel(n.id);
       await Api.instance.updateNote({'id': n.id, ...patch}); _load();
     }
-    catch (e) { _snack(e.toString()); }
+    catch (e) { _snack(friendlyError(e)); }
   }
 
   Future<void> _trash(Note n) async {
@@ -168,12 +169,12 @@ class _NotesScreenState extends State<NotesScreen> {
         }),
       ));
     }
-    catch (e) { _snack(e.toString()); }
+    catch (e) { _snack(friendlyError(e)); }
   }
 
   Future<void> _restore(Note n) async {
     try { await Api.instance.restoreNote(n.id); _load(); _snack('Restored'); }
-    catch (e) { _snack(e.toString()); }
+    catch (e) { _snack(friendlyError(e)); }
   }
 
   Future<void> _deleteForever(Note n) async {
@@ -188,7 +189,7 @@ class _NotesScreenState extends State<NotesScreen> {
       try {
         Notifications.instance.cancel(n.id); // deleted note must not fire its reminder
         await Api.instance.removeNote(n.id); _load();
-      } catch (e) { _snack(e.toString()); }
+      } catch (e) { _snack(friendlyError(e)); }
     }
   }
 
@@ -204,7 +205,7 @@ class _NotesScreenState extends State<NotesScreen> {
       try {
         for (final n in _notes) { Notifications.instance.cancel(n.id); } // trash view → drop any stray alarms
         await Api.instance.emptyTrash(); _load();
-      } catch (e) { _snack(e.toString()); }
+      } catch (e) { _snack(friendlyError(e)); }
     }
   }
 
@@ -220,7 +221,7 @@ class _NotesScreenState extends State<NotesScreen> {
     ctrl.dispose(); // dialog is closed; free the controller
     if (to != null && to.isNotEmpty && to != l) {
       try { await Api.instance.renameLabel(l, to); if (_activeLabel == l) _activeLabel = to; _load(); }
-      catch (e) { _snack(e.toString()); }
+      catch (e) { _snack(friendlyError(e)); }
     }
   }
 
@@ -234,7 +235,7 @@ class _NotesScreenState extends State<NotesScreen> {
       ]));
     if (ok == true) {
       try { await Api.instance.deleteLabel(l); if (_view == 'label' && _activeLabel == l) { _view = 'notes'; _activeLabel = null; } _load(); }
-      catch (e) { _snack(e.toString()); }
+      catch (e) { _snack(friendlyError(e)); }
     }
   }
 
