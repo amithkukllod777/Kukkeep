@@ -36,6 +36,7 @@ class _NotesScreenState extends State<NotesScreen> {
   String _search = '';
   final _searchCtrl = TextEditingController();
   String? _error;
+  bool _offline = false; // last _load() served the local cache (Api.isOffline)
 
   // Multi-select (bulk actions) — long-press a card to enter.
   final Set<int> _selected = {};
@@ -96,6 +97,9 @@ class _NotesScreenState extends State<NotesScreen> {
         _liveNotes = live;
         _archivedNotes = archived;
         _labels = labelSet.toList()..sort();
+        // Reflects the last of the notes() calls above — all made back-to-back
+        // under the same connectivity, so this is representative of the batch.
+        _offline = Api.instance.isOffline;
       });
       _rescheduleReminders(live); // keep OS reminders in sync with the notes
     } on ApiError catch (e) {
@@ -410,6 +414,7 @@ class _NotesScreenState extends State<NotesScreen> {
                   child: ListView(
                     padding: const EdgeInsets.all(12),
                     children: [
+                      if (_offline) _offlineBanner(),
                       if (_isTrash && _notes.isNotEmpty) _trashBanner(),
                       if (list.isEmpty)
                         Padding(padding: const EdgeInsets.only(top: 80), child: _emptyView()),
@@ -422,6 +427,24 @@ class _NotesScreenState extends State<NotesScreen> {
                     ],
                   ),
                 ),
+    );
+  }
+
+  // Shown when Api.notes() had to fall back to the local cache (offline-first
+  // note cache: qa-audit REMEDIATION_PLAN.md). Edits made now still work —
+  // they queue locally and sync automatically once a request gets through.
+  Widget _offlineBanner() {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(10)),
+      child: Row(children: [
+        Icon(Icons.cloud_off_outlined, size: 16, color: cs.onSurfaceVariant),
+        const SizedBox(width: 8),
+        Expanded(child: Text('Offline — showing your last synced notes. Changes will sync automatically.',
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant))),
+      ]),
     );
   }
 
@@ -473,7 +496,9 @@ class _NotesScreenState extends State<NotesScreen> {
                   onTap: () => _setView('label', label: l),
                   trailing: PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, size: 18),
-                    onSelected: (v) { if (v == 'rename') _renameLabel(l); else if (v == 'delete') _deleteLabel(l); },
+                    onSelected: (v) {
+                      if (v == 'rename') { _renameLabel(l); } else if (v == 'delete') { _deleteLabel(l); }
+                    },
                     itemBuilder: (_) => const [
                       PopupMenuItem(value: 'rename', child: Text('Rename')),
                       PopupMenuItem(value: 'delete', child: Text('Delete')),
@@ -640,8 +665,11 @@ class _NotesScreenState extends State<NotesScreen> {
               ]
               else if (n.body.isNotEmpty)
                 Padding(padding: const EdgeInsets.only(top: 2), child: _hl(n.body, const TextStyle(fontSize: 14, height: 1.35, color: Colors.black87), maxLines: _kCardBodyLines)),
-              if (n.labels.isNotEmpty || n.reminderAt != null || n.attachmentCount > 0)
+              if (n.labels.isNotEmpty || n.reminderAt != null || n.attachmentCount > 0 || n.id < 0)
                 Padding(padding: const EdgeInsets.only(top: 8), child: Wrap(spacing: 6, runSpacing: 4, children: [
+                  // Offline-created note, not yet synced (qa-audit REMEDIATION_PLAN.md) —
+                  // syncs automatically once the app can reach the server again.
+                  if (n.id < 0) _chip('Not synced', Icons.cloud_off, brand: true),
                   for (final l in n.labels) _chip(l, Icons.label_outline),
                   if (n.attachmentCount > 0) _chip('${n.attachmentCount}', Icons.attach_file),
                   if (n.reminderAt != null) _chip(_fmt(n.reminderAt!), Icons.notifications_none, brand: true),

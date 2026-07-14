@@ -278,10 +278,24 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
   // note, so the user never has to "Save first". A single in-flight create is
   // shared: if two attach actions race (e.g. a second chip tapped while a picker
   // is open), both await the same create instead of making duplicate notes.
+  //
+  // Offline-first (qa-audit REMEDIATION_PLAN.md): _createNoteNow() succeeds
+  // even without connectivity, handing back a negative temp id so the rest of
+  // the note (title/body/checklist/labels) still "saves" instantly. Attachment
+  // bytes aren't queued in this scope though — a temp id means the note hasn't
+  // reached the server yet, so uploading to it would fail confusingly. Gate it
+  // here, once, instead of in every _add*() call site.
   Future<bool>? _ensureInFlight;
-  Future<bool> _ensureNoteId() {
-    if (_noteId != null) return Future.value(true);
-    return _ensureInFlight ??= _createNoteNow().whenComplete(() => _ensureInFlight = null);
+  Future<bool> _ensureNoteId() async {
+    if (_noteId != null && _noteId! > 0) return true;
+    final ok = _noteId == null
+        ? await (_ensureInFlight ??= _createNoteNow().whenComplete(() => _ensureInFlight = null))
+        : true;
+    if (ok && (_noteId == null || _noteId! < 0)) {
+      _snack('This note hasn\'t synced yet — connect to the internet to add attachments.');
+      return false;
+    }
+    return ok;
   }
 
   Future<bool> _createNoteNow() async {

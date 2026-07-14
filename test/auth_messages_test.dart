@@ -37,7 +37,7 @@ void main() {
     });
 
     test('SocketException maps to the offline message', () {
-      final e = const SocketException('Failed host lookup');
+      const e = SocketException('Failed host lookup');
       expect(friendlyAuthError(e), AuthMessages.offline);
     });
 
