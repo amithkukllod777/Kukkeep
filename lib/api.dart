@@ -1,12 +1,22 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
+import 'offline_store.dart';
 
 // Every network call gets a consistent ceiling instead of hanging forever on
 // a stalled connection (qa-audit SEC-007).
 const _kRequestTimeout = Duration(seconds: 20);
+
+// Offline-first notes (qa-audit REMEDIATION_PLAN.md, medium-term item): tells
+// a genuine "can't reach the server" failure apart from a real server-side
+// rejection (bad input, 404, etc.) — only the former should fall back to the
+// local cache / queue into the outbox. The latter must still surface to the
+// caller so existing error handling (friendlyError, retry UI) keeps working.
+bool _isConnectivityError(Object e) => e is SocketException || e is TimeoutException || e is http.ClientException;
 
 /// Minimal tRPC-over-HTTP client for the KukLabs backend.
 ///
@@ -264,29 +274,229 @@ class Api {
   }
 
   // ── Notes (KukKeep `keep` router → kuk_keep_notes table) ──
+  //
+  // Offline-first (qa-audit REMEDIATION_PLAN.md): every method below tries the
+  // network first — identical behavior to before when online. On a genuine
+  // connectivity failure (never a real server rejection), it falls back to /
+  // queues into OfflineStore instead of throwing, so the screens' existing
+  // optimistic-update + catch-block code needs no changes at all. A `create`
+  // made offline gets a negative temp id; further offline edits to that same
+  // note coalesce into the still-queued create instead of stacking ops
+  // against a server id that doesn't exist yet.
+
+  bool _flushingOutbox = false;
+  bool _lastNotesFromCache = false;
+  /// True if the most recent `notes()` call served the local cache instead of
+  /// a live server response (lets the UI show a small "offline" indicator).
+  bool get isOffline => _lastNotesFromCache;
+
   Future<List<Note>> notes({bool archived = false, bool trashed = false}) async {
-    final data = await query('keep.list', {'archived': archived, 'trashed': trashed});
-    if (data is List) return data.map((e) => Note.fromJson(e)).toList();
-    return [];
+    try {
+      final data = await query('keep.list', {'archived': archived, 'trashed': trashed});
+      final list = data is List ? data.map((e) => Note.fromJson(e)).toList() : <Note>[];
+      _lastNotesFromCache = false;
+      unawaited(OfflineStore.instance.saveNotes(archived: archived, trashed: trashed, notes: list));
+      unawaited(flushOutbox()); // a successful round-trip proves we're online
+      return list;
+    } catch (e) {
+      if (_isConnectivityError(e) && await OfflineStore.instance.hasCacheFor(archived: archived, trashed: trashed)) {
+        _lastNotesFromCache = true;
+        return OfflineStore.instance.loadNotes(archived: archived, trashed: trashed);
+      }
+      rethrow;
+    }
   }
 
-  Future<void> createNote(Map<String, dynamic> input) => mutate('keep.create', input);
-  /// Create a note and return its new id (used to attach images/files/drawings
-  /// to a brand-new note without a separate Save step).
-  Future<int?> createNoteReturningId(Map<String, dynamic> input) async {
-    final data = await mutate('keep.create', input);
-    if (data is Map && data['id'] != null) return (data['id'] as num).toInt();
-    return null;
+  Future<void> createNote(Map<String, dynamic> input) async {
+    await createNoteReturningId(input);
   }
-  Future<void> updateNote(Map<String, dynamic> input) => mutate('keep.update', input);
-  Future<void> trashNote(int id) => mutate('keep.trash', {'id': id, 'trashed': true});   // move to Trash
-  Future<void> restoreNote(int id) => mutate('keep.trash', {'id': id, 'trashed': false}); // restore
-  Future<void> removeNote(int id) => mutate('keep.remove', {'id': id});                   // permanent delete
-  Future<void> emptyTrash() => mutate('keep.emptyTrash', {'all': true});
+
+  /// Create a note and return its new id (used to attach images/files/drawings
+  /// to a brand-new note without a separate Save step). Offline, returns a
+  /// negative temp id immediately — callers that only need "a note exists
+  /// now" (autosave, attachments-gate) work unchanged; attachment upload
+  /// itself still requires a real (positive) id since file bytes aren't
+  /// queued in this scope.
+  Future<int?> createNoteReturningId(Map<String, dynamic> input) async {
+    try {
+      final data = await mutate('keep.create', input);
+      if (data is Map && data['id'] != null) {
+        final id = (data['id'] as num).toInt();
+        unawaited(OfflineStore.instance.cacheCreate(id, input));
+        return id;
+      }
+      return null;
+    } catch (e) {
+      if (_isConnectivityError(e)) {
+        final tempId = await OfflineStore.instance.nextTempId();
+        await OfflineStore.instance.cacheCreate(tempId, input);
+        await OfflineStore.instance.enqueue('create', input, coalesceLocalNoteId: tempId);
+        return tempId;
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> updateNote(Map<String, dynamic> input) async {
+    final id = input['id'] is num ? (input['id'] as num).toInt() : null;
+    try {
+      await mutate('keep.update', input);
+      if (id != null) unawaited(OfflineStore.instance.cacheUpdate(id, input));
+    } catch (e) {
+      if (_isConnectivityError(e) && id != null) {
+        await OfflineStore.instance.cacheUpdate(id, input);
+        if (id < 0) {
+          // Note hasn't synced yet — fold this edit into the pending create.
+          await OfflineStore.instance.enqueue('create', {...input}..remove('id'), coalesceLocalNoteId: id);
+        } else {
+          await OfflineStore.instance.enqueue('update', input);
+        }
+        return;
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> trashNote(int id) => _trashOrRestore(id, trashed: true);   // move to Trash
+  Future<void> restoreNote(int id) => _trashOrRestore(id, trashed: false); // restore
+
+  Future<void> _trashOrRestore(int id, {required bool trashed}) async {
+    if (id < 0) {
+      // Never-synced note — trashing it is the same as it never existing.
+      if (trashed) await OfflineStore.instance.discardTempNote(id);
+      return;
+    }
+    final payload = {'id': id, 'trashed': trashed};
+    try {
+      await mutate('keep.trash', payload);
+      unawaited(trashed ? OfflineStore.instance.cacheMoveToTrash(id) : OfflineStore.instance.cacheRestoreFromTrash(id));
+    } catch (e) {
+      if (_isConnectivityError(e)) {
+        if (trashed) {
+          await OfflineStore.instance.cacheMoveToTrash(id);
+        } else {
+          await OfflineStore.instance.cacheRestoreFromTrash(id);
+        }
+        await OfflineStore.instance.enqueue('trash', payload);
+        return;
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> removeNote(int id) async {
+    // permanent delete
+    if (id < 0) { await OfflineStore.instance.discardTempNote(id); return; }
+    try {
+      await mutate('keep.remove', {'id': id});
+      unawaited(OfflineStore.instance.cacheRemove(id));
+    } catch (e) {
+      if (_isConnectivityError(e)) {
+        await OfflineStore.instance.cacheRemove(id);
+        await OfflineStore.instance.enqueue('remove', {'id': id});
+        return;
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> emptyTrash() async {
+    try {
+      await mutate('keep.emptyTrash', {'all': true});
+      unawaited(OfflineStore.instance.cacheEmptyTrash());
+    } catch (e) {
+      if (_isConnectivityError(e)) {
+        await OfflineStore.instance.cacheEmptyTrash();
+        await OfflineStore.instance.enqueue('emptyTrash', {'all': true});
+        return;
+      }
+      rethrow;
+    }
+  }
 
   // ── Labels ──
-  Future<void> renameLabel(String from, String to) => mutate('keep.renameLabel', {'from': from, 'to': to});
-  Future<void> deleteLabel(String label) => mutate('keep.deleteLabel', {'label': label});
+  Future<void> renameLabel(String from, String to) async {
+    final payload = {'from': from, 'to': to};
+    try {
+      await mutate('keep.renameLabel', payload);
+      unawaited(OfflineStore.instance.cacheRenameLabel(from, to));
+    } catch (e) {
+      if (_isConnectivityError(e)) {
+        await OfflineStore.instance.cacheRenameLabel(from, to);
+        await OfflineStore.instance.enqueue('renameLabel', payload);
+        return;
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> deleteLabel(String label) async {
+    final payload = {'label': label};
+    try {
+      await mutate('keep.deleteLabel', payload);
+      unawaited(OfflineStore.instance.cacheDeleteLabel(label));
+    } catch (e) {
+      if (_isConnectivityError(e)) {
+        await OfflineStore.instance.cacheDeleteLabel(label);
+        await OfflineStore.instance.enqueue('deleteLabel', payload);
+        return;
+      }
+      rethrow;
+    }
+  }
+
+  /// Replays queued offline writes in order once a request actually reaches
+  /// the server. Stops (leaving the rest queued) at the first sign we're
+  /// still offline; drops — rather than retries forever — an op the server
+  /// genuinely rejects (e.g. a note deleted elsewhere in the meantime), so one
+  /// stale op can't wedge every op behind it. Calls the raw tRPC methods
+  /// directly (never the wrapped methods above) so a still-offline replay
+  /// can't re-queue the very op it's trying to send.
+  Future<void> flushOutbox() async {
+    if (_flushingOutbox) return;
+    _flushingOutbox = true;
+    try {
+      final ops = await OfflineStore.instance.outbox();
+      for (final op in ops) {
+        try {
+          switch (op['type']) {
+            case 'create':
+              final payload = Map<String, dynamic>.from(op['payload']);
+              final data = await mutate('keep.create', payload);
+              final realId = (data is Map && data['id'] != null) ? (data['id'] as num).toInt() : null;
+              if (realId != null && op['localId'] != null) {
+                await OfflineStore.instance.replaceTempNoteId(op['localId'] as int, realId);
+              }
+              break;
+            case 'update':
+              await mutate('keep.update', Map<String, dynamic>.from(op['payload']));
+              break;
+            case 'trash':
+              await mutate('keep.trash', Map<String, dynamic>.from(op['payload']));
+              break;
+            case 'remove':
+              await mutate('keep.remove', Map<String, dynamic>.from(op['payload']));
+              break;
+            case 'emptyTrash':
+              await mutate('keep.emptyTrash', Map<String, dynamic>.from(op['payload']));
+              break;
+            case 'renameLabel':
+              await mutate('keep.renameLabel', Map<String, dynamic>.from(op['payload']));
+              break;
+            case 'deleteLabel':
+              await mutate('keep.deleteLabel', Map<String, dynamic>.from(op['payload']));
+              break;
+          }
+          await OfflineStore.instance.removeOp(op['opId'] as int);
+        } catch (e) {
+          if (_isConnectivityError(e)) return; // still offline — retry next time
+          await OfflineStore.instance.removeOp(op['opId'] as int); // genuine rejection — drop it, keep draining
+        }
+      }
+    } finally {
+      _flushingOutbox = false;
+    }
+  }
 
   // ── Attachments (image / file notes + OCR) ──
   Future<List<Attachment>> listAttachments(int noteId) async {
