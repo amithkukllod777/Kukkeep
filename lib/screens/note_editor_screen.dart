@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
@@ -18,7 +19,7 @@ class NoteEditorScreen extends StatefulWidget {
   State<NoteEditorScreen> createState() => _NoteEditorScreenState();
 }
 
-class _NoteEditorScreenState extends State<NoteEditorScreen> {
+class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBindingObserver {
   late TextEditingController _title;
   late TextEditingController _body;
   late String _type;
@@ -50,9 +51,15 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   bool get _isNew => _noteId == null;
 
+  // Snapshot taken right after load, compared against the live fields to tell
+  // whether the user has actually changed anything (BUG-005: skip the network
+  // write entirely when they open a note and back out untouched).
+  late String _initialSnapshot;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final n = widget.note;
     _noteId = n?.id;
     _title = TextEditingController(text: n?.title ?? '');
@@ -72,16 +79,51 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       try { _reminder = DateTime.parse(n!.reminderAt!).toLocal(); } catch (_) {}
     }
     _buildItemControllers();
+    _initialSnapshot = _snapshot();
     if (!_isNew) _loadAttachments();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _title.dispose();
     _body.dispose();
     _labelInput.dispose();
     _disposeItemControllers();
     super.dispose();
+  }
+
+  // Backgrounding is the real-world precursor to an OS-level app kill (low
+  // memory, swipe-away) — flush a dirty draft to the server here so it isn't
+  // lost with the process (BUG-010). Best-effort and silent: the screen isn't
+  // visible while this runs, so there's no one to show an error to, and the
+  // explicit Save/back path remains the source of truth for user-facing failures.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      _autosaveIfDirty();
+    }
+  }
+
+  // Cheap serialization of every persisted field — used both to detect real
+  // edits (BUG-005) and to know when a background autosave has new work to do
+  // (BUG-010).
+  String _snapshot() {
+    _syncItems();
+    final items = _items.map((e) => '${e.text}#${e.done}').join('|');
+    return [_title.text, _body.text, _type, items, _color, _labels.join('|'), _pinned, _reminder?.toIso8601String()]
+        .join('~');
+  }
+
+  bool get _dirty => _snapshot() != _initialSnapshot;
+
+  Future<void> _autosaveIfDirty() async {
+    if (_saving || !_dirty) return;
+    if (_isNew && _isEmptyDraft) return;
+    try {
+      await _persist(_payload());
+      _initialSnapshot = _snapshot();
+    } catch (_) {/* best-effort — the explicit Save/back path will retry */}
   }
 
   void _buildItemControllers() {
@@ -183,6 +225,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           const SizedBox(width: 22),
         IconButton(
           visualDensity: VisualDensity.compact,
+          tooltip: done ? 'Mark not done' : 'Mark done',
           icon: Icon(done ? Icons.check_box : Icons.check_box_outline_blank, color: done ? kBrand : Colors.black45),
           onPressed: () => _toggleDone(i),
         ),
@@ -200,7 +243,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
             ),
           ),
         ),
-        IconButton(visualDensity: VisualDensity.compact, icon: const Icon(Icons.close, size: 18, color: Colors.black38), onPressed: () => _removeItem(i)),
+        IconButton(visualDensity: VisualDensity.compact, tooltip: 'Remove item', icon: const Icon(Icons.close, size: 18, color: Colors.black38), onPressed: () => _removeItem(i)),
       ]),
     );
   }
@@ -313,7 +356,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       if (ocr && ocrText.isEmpty && ocrError.isNotEmpty) {
         _snack(ocrError); // e.g. unsupported format / vision API error — never fail silently
       }
-      if (ocr && ocrText.isNotEmpty) {
+      if (ocr && ocrText.isNotEmpty && mounted) {
         setState(() {
           // OCR output goes into the text body. If this was a checklist, first
           // fold the items into the body so no checklist content is lost.
@@ -365,11 +408,12 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
   }
 
-  Future<void> _save() async {
+  // Builds the save payload from live state. Shared by the explicit Save/back
+  // path and the background autosave hook so both persist identically.
+  Map<String, dynamic> _payload() {
     _syncItems();
-    setState(() => _saving = true);
     final items = _items.where((i) => i.text.trim().isNotEmpty).map((e) => e.toJson()).toList();
-    final payload = <String, dynamic>{
+    return <String, dynamic>{
       'title': _title.text.trim(),
       'type': _type,
       'body': _type == 'note' ? _body.text.trim() : '',
@@ -378,31 +422,49 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       'labels': _labels,
       'pinned': _pinned,
     };
-    try {
-      if (_isNew) {
-        final empty = payload['title'].toString().isEmpty && payload['body'].toString().isEmpty && items.isEmpty;
-        if (empty) { if (mounted) Navigator.pop(context, false); return; }
-        // create() rejects a null reminder — only include it when set.
-        if (_reminder != null) payload['reminderAt'] = _reminder!.toUtc().toIso8601String();
-        _noteId = await Api.instance.createNoteReturningId(payload);
+  }
+
+  bool get _isEmptyDraft {
+    final p = _payload();
+    return p['title'].toString().isEmpty && p['body'].toString().isEmpty && (p['items'] as List).isEmpty;
+  }
+
+  // Creates or updates the note and schedules/cancels its local reminder
+  // notification. Shared by the explicit Save/back path and the background
+  // autosave hook (BUG-005/BUG-010) — throws on failure, caller decides how
+  // to handle it (show an error vs. fail silently in the background).
+  Future<void> _persist(Map<String, dynamic> payload) async {
+    if (_isNew) {
+      // create() rejects a null reminder — only include it when set.
+      if (_reminder != null) payload['reminderAt'] = _reminder!.toUtc().toIso8601String();
+      _noteId = await Api.instance.createNoteReturningId(payload);
+    } else {
+      // update() accepts null to clear an existing reminder.
+      payload['reminderAt'] = _reminder?.toUtc().toIso8601String();
+      await Api.instance.updateNote({'id': _noteId!, ...payload});
+    }
+    // Schedule / clear the local reminder notification for this note.
+    if (_noteId != null) {
+      if (_reminder != null) {
+        await Notifications.instance.schedule(
+          noteId: _noteId!,
+          title: _title.text.trim(),
+          body: _type == 'note' ? _body.text.trim() : _items.where((i) => i.text.trim().isNotEmpty).map((i) => i.text.trim()).join(', '),
+          when: _reminder!,
+        );
       } else {
-        // update() accepts null to clear an existing reminder.
-        payload['reminderAt'] = _reminder?.toUtc().toIso8601String();
-        await Api.instance.updateNote({'id': _noteId!, ...payload});
+        await Notifications.instance.cancel(_noteId!);
       }
-      // Schedule / clear the local reminder notification for this note.
-      if (_noteId != null) {
-        if (_reminder != null) {
-          await Notifications.instance.schedule(
-            noteId: _noteId!,
-            title: _title.text.trim(),
-            body: _type == 'note' ? _body.text.trim() : _items.where((i) => i.text.trim().isNotEmpty).map((i) => i.text.trim()).join(', '),
-            when: _reminder!,
-          );
-        } else {
-          await Notifications.instance.cancel(_noteId!);
-        }
-      }
+    }
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final payload = _payload();
+    try {
+      if (_isNew && _isEmptyDraft) { if (mounted) Navigator.pop(context, false); return; }
+      await _persist(payload);
+      _initialSnapshot = _snapshot();
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
@@ -430,17 +492,21 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   // stays put so the edit isn't lost). _onBack must not second-guess that:
   // an earlier version popped unconditionally after awaiting _save(), which
   // discarded the user's edit whenever the save failed (e.g. offline).
+  //
+  // BUG-005: skip the network round-trip entirely when nothing actually
+  // changed — opening a note and backing straight out shouldn't issue a write.
   Future<void> _onBack() async {
     if (_saving) return;
+    if (!_dirty) { if (mounted) Navigator.pop(context, false); return; }
     await _save();
   }
 
   Future<void> _pickReminder() async {
     final now = DateTime.now();
     final d = await showDatePicker(context: context, initialDate: _reminder ?? now, firstDate: now.subtract(const Duration(days: 1)), lastDate: now.add(const Duration(days: 3650)));
-    if (d == null) return;
+    if (d == null || !mounted) return;
     final t = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(_reminder ?? now));
-    if (t == null) return;
+    if (t == null || !mounted) return;
     final when = DateTime(d.year, d.month, d.day, t.hour, t.minute);
     // A reminder in the past would never fire — guard it (P20).
     if (!when.isAfter(DateTime.now())) { _snack('Pick a time in the future.'); return; }
@@ -465,7 +531,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     setState(() => _aiBusy = action);
     try {
       final text = (await Api.instance.aiAction(action, content)).trim();
-      if (text.isEmpty) return;
+      if (text.isEmpty || !mounted) return;
       setState(() {
         if (action == 'title') { _title.text = text; }
         else if (action == 'clean') { _type = 'note'; _body.text = text; } // cleaned version of the checklist content
@@ -499,8 +565,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black87),
         actions: [
-          IconButton(icon: Icon(_pinned ? Icons.push_pin : Icons.push_pin_outlined, color: _pinned ? kBrandDark : Colors.black54), onPressed: () => setState(() => _pinned = !_pinned)),
-          IconButton(icon: const Icon(Icons.delete_outline, color: Colors.black54), onPressed: _delete),
+          IconButton(tooltip: _pinned ? 'Unpin' : 'Pin', icon: Icon(_pinned ? Icons.push_pin : Icons.push_pin_outlined, color: _pinned ? kBrandDark : Colors.black54), onPressed: () => setState(() => _pinned = !_pinned)),
+          IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, color: Colors.black54), onPressed: _delete),
           TextButton(onPressed: _saving ? null : _save, child: _saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save', style: TextStyle(color: kBrandDark, fontWeight: FontWeight.bold))),
         ],
       ),
@@ -618,8 +684,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                     if (a.isImage)
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(Api.instance.absoluteUrl(a.fileUrl), width: 72, height: 72, fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(width: 72, height: 72, color: Colors.black12, child: const Icon(Icons.broken_image, color: Colors.black38))),
+                        child: CachedNetworkImage(imageUrl: Api.instance.absoluteUrl(a.fileUrl), width: 72, height: 72, fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) => Container(width: 72, height: 72, color: Colors.black12, child: const Icon(Icons.broken_image, color: Colors.black38))),
                       )
                     else
                       Container(
@@ -633,11 +699,14 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                       ),
                     Positioned(
                       top: -8, right: -8,
-                      child: GestureDetector(
-                        onTap: () => _deleteAttachment(a),
-                        child: Container(
-                          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                          child: const Icon(Icons.cancel, size: 18, color: Colors.black45),
+                      child: Tooltip(
+                        message: 'Remove attachment',
+                        child: GestureDetector(
+                          onTap: () => _deleteAttachment(a),
+                          child: Container(
+                            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                            child: const Icon(Icons.cancel, size: 18, color: Colors.black45),
+                          ),
                         ),
                       ),
                     ),
@@ -675,7 +744,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               TextButton(onPressed: _pickReminder, child: const Text('Add reminder'))
             else ...[
               Text(DateFormat('MMM d, yyyy • h:mm a').format(_reminder!), style: const TextStyle(fontSize: 13, color: _ink)),
-              IconButton(icon: const Icon(Icons.close, size: 16, color: Colors.black54), onPressed: () => setState(() => _reminder = null)),
+              IconButton(tooltip: 'Remove reminder', icon: const Icon(Icons.close, size: 16, color: Colors.black54), onPressed: () => setState(() => _reminder = null)),
             ],
           ]),
           const SizedBox(height: 16),
@@ -694,14 +763,19 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           const SizedBox(height: 8),
           Wrap(spacing: 10, runSpacing: 10, children: [
             for (final key in kColorKeys)
-              GestureDetector(
-                onTap: () => setState(() => _color = key),
-                child: Container(
-                  width: 34, height: 34,
-                  decoration: BoxDecoration(
-                    color: noteColor(key),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: _color == key ? kBrand : Colors.black26, width: _color == key ? 3 : 1),
+              Semantics(
+                label: '$key note color',
+                selected: _color == key,
+                button: true,
+                child: GestureDetector(
+                  onTap: () => setState(() => _color = key),
+                  child: Container(
+                    width: 34, height: 34,
+                    decoration: BoxDecoration(
+                      color: noteColor(key),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: _color == key ? kBrand : Colors.black26, width: _color == key ? 3 : 1),
+                    ),
                   ),
                 ),
               ),

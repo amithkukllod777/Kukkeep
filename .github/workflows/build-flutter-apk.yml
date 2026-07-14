@@ -51,19 +51,25 @@ jobs:
           KTS
           fi
 
-      - name: Set package name to com.kuklabs.keep + wire Firebase (google-services)
+      - name: Set package name to com.kuklabs.keep + wire Firebase (google-services + Crashlytics)
         run: |
           A=android/app/build.gradle.kts
           S=android/settings.gradle.kts
           sed -i 's/applicationId = "com.kuklabs.kukkeep"/applicationId = "com.kuklabs.keep"/' "$A"
           cp google-services.json android/app/google-services.json
           grep -q 'com.google.gms.google-services' "$S" || \
-            sed -i 's#id("com.android.application") version \(".*"\) apply false#id("com.android.application") version \1 apply false\n    id("com.google.gms.google-services") version "4.4.2" apply false#' "$S"
+            sed -i 's#id("com.android.application") version \(".*"\) apply false#id("com.android.application") version \1 apply false\n    id("com.google.gms.google-services") version "4.4.2" apply false\n    id("com.google.firebase.crashlytics") version "3.0.2" apply false#' "$S"
           grep -q 'com.google.gms.google-services' "$A" || \
-            sed -i 's#id("com.android.application")#id("com.android.application")\n    id("com.google.gms.google-services")#' "$A"
+            sed -i 's#id("com.android.application")#id("com.android.application")\n    id("com.google.gms.google-services")\n    id("com.google.firebase.crashlytics")#' "$A"
 
       - name: Pub get
         run: flutter pub get
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Analyze
+        run: flutter analyze
 
       - name: Generate launcher icon from the KukLabs logo
         run: dart run flutter_launcher_icons

@@ -74,6 +74,7 @@ class _AuthScreenState extends State<AuthScreen> {
       if (!mounted) return;
       if (companies.isEmpty) {
         final cid = await Api.instance.ensureCompany(name: Api.instance.userName ?? 'My Notes');
+        if (!mounted) return;
         if (cid == null) { setState(() => _error = 'Could not set up your workspace — please try again.'); return; }
         _goToNotes();
       } else if (companies.length == 1) {

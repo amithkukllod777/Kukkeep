@@ -1,3 +1,6 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,17 +30,42 @@ Future<void> setThemeMode(ThemeMode m) async {
   await p.setString('kk_theme', m == ThemeMode.dark ? 'dark' : m == ThemeMode.light ? 'light' : 'system');
 }
 
-void main() async {
+// Crash reporting (qa-audit: no monitoring existed). Safe to call before
+// Firebase finishes initializing — Push.init() sets it up fire-and-forget
+// shortly after this runs, and every call here is guarded so a
+// reporting failure can never itself crash the app or block anything.
+Future<void> _recordError(Object error, StackTrace? stack, {bool fatal = false}) async {
+  try {
+    if (Firebase.apps.isEmpty) return; // Firebase not ready yet — drop silently
+    await FirebaseCrashlytics.instance.recordError(error, stack, fatal: fatal);
+  } catch (_) {/* crash reporting must never itself throw */}
+}
+
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await Api.instance.load();
-  await loadTheme();
-  runApp(const KukKeepApp());
-  // Notifications + Firebase push are optional and must NEVER block the first
-  // frame — init them after the UI is up (a hang/failure here must not blank the
-  // app). Fire-and-forget; both are internally guarded with try/catch.
-  Notifications.instance.init();
-  Push.instance.init();
-  GoogleAuth.instance.init(); // listen for the kukkeep://auth sign-in deep link
+  // Route every uncaught Flutter/platform error to Crashlytics, then run the
+  // rest of startup inside the same guarded zone so async startup errors are
+  // caught too. Registering handlers is instant (no await), so this can't
+  // delay the first frame the way a real Firebase/notification init would.
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    _recordError(details.exception, details.stack, fatal: true);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    _recordError(error, stack, fatal: true);
+    return true;
+  };
+  runZonedGuarded(() async {
+    await Api.instance.load();
+    await loadTheme();
+    runApp(const KukKeepApp());
+    // Notifications + Firebase push are optional and must NEVER block the first
+    // frame — init them after the UI is up (a hang/failure here must not blank the
+    // app). Fire-and-forget; both are internally guarded with try/catch.
+    Notifications.instance.init();
+    Push.instance.init();
+    GoogleAuth.instance.init(); // listen for the kukkeep://auth sign-in deep link
+  }, (error, stack) => _recordError(error, stack, fatal: true));
 }
 
 class KukKeepApp extends StatelessWidget {

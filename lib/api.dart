@@ -211,10 +211,14 @@ class Api {
   }
 
   /// Trade the one-time deep-link code for a session token (same Bearer token
-  /// as directLogin — 30-day native TTL).
+  /// as directLogin — 30-day native TTL). POSTed in the body, not a query
+  /// string — a one-time secret shouldn't end up in server/proxy access logs
+  /// (qa-audit SEC-004).
   Future<void> googleExchange(String code) async {
-    final res = await http.get(
-        Uri.parse('$base/api/auth/google/app-exchange?code=${Uri.encodeComponent(code)}'))
+    final res = await http.post(
+        Uri.parse('$base/api/auth/google/app-exchange'),
+        headers: {'content-type': 'application/json'},
+        body: jsonEncode({'code': code}))
         .timeout(_kRequestTimeout);
     dynamic b;
     try { b = jsonDecode(res.body); } catch (_) {

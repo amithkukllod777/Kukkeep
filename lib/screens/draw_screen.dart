@@ -119,16 +119,21 @@ class _DrawScreenState extends State<DrawScreen> {
                     height: 34,
                     child: ListView(scrollDirection: Axis.horizontal, children: [
                       for (final c in _palette)
-                        GestureDetector(
-                          onTap: () => setState(() { _color = c; _eraser = false; }),
-                          child: Container(
-                            margin: const EdgeInsets.only(right: 10, top: 3, bottom: 3),
-                            width: 28, height: 28,
-                            decoration: BoxDecoration(
-                              color: c, shape: BoxShape.circle,
-                              border: Border.all(
-                                color: !_eraser && _color == c ? kBrand : Colors.black26,
-                                width: !_eraser && _color == c ? 3 : 1),
+                        Semantics(
+                          label: 'Pen color',
+                          selected: !_eraser && _color == c,
+                          button: true,
+                          child: GestureDetector(
+                            onTap: () => setState(() { _color = c; _eraser = false; }),
+                            child: Container(
+                              margin: const EdgeInsets.only(right: 10, top: 3, bottom: 3),
+                              width: 28, height: 28,
+                              decoration: BoxDecoration(
+                                color: c, shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: !_eraser && _color == c ? kBrand : Colors.black26,
+                                  width: !_eraser && _color == c ? 3 : 1),
+                              ),
                             ),
                           ),
                         ),
@@ -136,34 +141,42 @@ class _DrawScreenState extends State<DrawScreen> {
                   ),
                 ),
                 // Eraser toggle
-                GestureDetector(
-                  onTap: () => setState(() => _eraser = !_eraser),
-                  child: Container(
-                    margin: const EdgeInsets.only(left: 4, right: 10),
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: _eraser ? const Color(0xFFE3F2FD) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: _eraser ? kBrand : Colors.black26),
+                Tooltip(
+                  message: 'Eraser',
+                  child: GestureDetector(
+                    onTap: () => setState(() => _eraser = !_eraser),
+                    child: Container(
+                      margin: const EdgeInsets.only(left: 4, right: 10),
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: _eraser ? const Color(0xFFE3F2FD) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: _eraser ? kBrand : Colors.black26),
+                      ),
+                      child: Icon(Icons.cleaning_services_outlined, size: 20, color: _eraser ? kBrandDark : Colors.black45),
                     ),
-                    child: Icon(Icons.cleaning_services_outlined, size: 20, color: _eraser ? kBrandDark : Colors.black45),
                   ),
                 ),
                 // Stroke width presets (dot size = stroke size)
                 for (final w in _widths)
-                  GestureDetector(
-                    onTap: () => setState(() => _width = w),
-                    child: Container(
-                      width: 30, height: 30,
-                      margin: const EdgeInsets.only(right: 2),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _width == w ? const Color(0xFFE3F2FD) : Colors.transparent,
-                      ),
+                  Semantics(
+                    label: 'Stroke width $w',
+                    selected: _width == w,
+                    button: true,
+                    child: GestureDetector(
+                      onTap: () => setState(() => _width = w),
                       child: Container(
-                        width: 6 + w, height: 6 + w,
-                        decoration: BoxDecoration(color: _width == w ? kBrandDark : Colors.black38, shape: BoxShape.circle),
+                        width: 30, height: 30,
+                        margin: const EdgeInsets.only(right: 2),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _width == w ? const Color(0xFFE3F2FD) : Colors.transparent,
+                        ),
+                        child: Container(
+                          width: 6 + w, height: 6 + w,
+                          decoration: BoxDecoration(color: _width == w ? kBrandDark : Colors.black38, shape: BoxShape.circle),
+                        ),
                       ),
                     ),
                   ),
@@ -182,10 +195,10 @@ class _DrawScreenState extends State<DrawScreen> {
               boxShadow: const [BoxShadow(color: kCardShadow, blurRadius: 10, offset: Offset(0, 3))],
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(icon: const Icon(Icons.undo, size: 20), color: _strokes.isEmpty ? Colors.black26 : Colors.black87,
+              IconButton(tooltip: 'Undo', icon: const Icon(Icons.undo, size: 20), color: _strokes.isEmpty ? Colors.black26 : Colors.black87,
                   onPressed: _strokes.isEmpty ? null : _undo),
               Container(width: 1, height: 20, color: Colors.black12),
-              IconButton(icon: const Icon(Icons.redo, size: 20), color: _redo.isEmpty ? Colors.black26 : Colors.black87,
+              IconButton(tooltip: 'Redo', icon: const Icon(Icons.redo, size: 20), color: _redo.isEmpty ? Colors.black26 : Colors.black87,
                   onPressed: _redo.isEmpty ? null : _redoStroke),
             ]),
           ),
