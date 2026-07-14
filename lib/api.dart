@@ -1,7 +1,12 @@
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
+
+// Every network call gets a consistent ceiling instead of hanging forever on
+// a stalled connection (qa-audit SEC-007).
+const _kRequestTimeout = Duration(seconds: 20);
 
 /// Minimal tRPC-over-HTTP client for the KukLabs backend.
 ///
@@ -18,6 +23,14 @@ class Api {
   // (one backend + DB + accounts for every Kuk app).
   static const String base = 'https://keep.kuklabs.com';
 
+  // The Bearer session token is the one genuinely sensitive value this app
+  // stores — it's kept in Keystore-backed secure storage (Android
+  // EncryptedSharedPreferences under the hood), not plain SharedPreferences,
+  // so it isn't readable in plaintext via a rooted device or an insecure
+  // backup (qa-audit SEC-001). Company id / display name aren't secrets and
+  // stay in ordinary SharedPreferences.
+  static const _secureStorage = FlutterSecureStorage();
+
   String? _token;
   int? _companyId;
   String? userName;
@@ -27,25 +40,31 @@ class Api {
   bool get isLoggedIn => _token != null;
 
   Future<void> load() async {
+    _token = await _secureStorage.read(key: 'kk_token');
     final p = await SharedPreferences.getInstance();
-    _token = p.getString('kk_token');
     _companyId = p.getInt('kk_company');
     userName = p.getString('kk_user');
   }
 
   Future<void> _save() async {
+    if (_token != null) await _secureStorage.write(key: 'kk_token', value: _token!);
     final p = await SharedPreferences.getInstance();
-    if (_token != null) await p.setString('kk_token', _token!);
     if (_companyId != null) await p.setInt('kk_company', _companyId!);
     if (userName != null) await p.setString('kk_user', userName!);
   }
 
   Future<void> logout() async {
+    // Best-effort server-side logout (qa-audit SEC-002): the shared backend's
+    // auth.logout only clears its own session cookie today — it doesn't (and,
+    // being a stateless JWT with no revocation list, currently can't) invalidate
+    // this Bearer token — but it does log a security event, so it's worth
+    // calling. Never let a failed/offline call block the local sign-out.
+    try { await mutate('auth.logout', {}); } catch (_) {}
     _token = null;
     _companyId = null;
     userName = null;
+    await _secureStorage.delete(key: 'kk_token');
     final p = await SharedPreferences.getInstance();
-    await p.remove('kk_token');
     await p.remove('kk_company');
     await p.remove('kk_user');
   }
@@ -97,13 +116,14 @@ class Api {
     // tRPC batch envelope: a no-arg query must send {"0":{"json":null}}.
     final payload = Uri.encodeComponent(jsonEncode({'0': {'json': input}}));
     final url = Uri.parse('$base/api/trpc/$proc?batch=1&input=$payload');
-    final res = await http.get(url, headers: _headers);
+    final res = await http.get(url, headers: _headers).timeout(_kRequestTimeout);
     return _unwrap(res);
   }
 
   Future<dynamic> mutate(String proc, Map<String, dynamic> input) async {
     final url = Uri.parse('$base/api/trpc/$proc?batch=1');
-    final res = await http.post(url, headers: _headers, body: jsonEncode({'0': {'json': input}}));
+    final res = await http.post(url, headers: _headers, body: jsonEncode({'0': {'json': input}}))
+        .timeout(_kRequestTimeout);
     return _unwrap(res);
   }
 
@@ -148,6 +168,30 @@ class Api {
 
   Future<void> resendOtp(String email) => mutate('auth.resendOtp', {'email': email});
 
+  // ── Data & Privacy (qa-audit: Google Play Account Deletion policy) ──
+  /// Exports the signed-in user's personal data (profile, workspaces, KukChat
+  /// handle) via the shared platform's GDPR/DPDP data-export endpoint.
+  Future<Map<String, dynamic>> exportMyData() async {
+    final data = await query('auth.exportMyData');
+    return data is Map ? Map<String, dynamic>.from(data) : {};
+  }
+
+  /// Deletes (anonymizes) the signed-in user's account via the shared
+  /// platform's GDPR/DPDP account-deletion endpoint. Throws an ApiError with
+  /// a user-actionable message if the account can't be deleted yet (e.g. the
+  /// user still solely owns a company and must transfer ownership first).
+  Future<void> deleteAccount() async {
+    await mutate('auth.deleteMyAccount', {'confirm': true});
+    // The server already cleared its own session; drop the local one too.
+    _token = null;
+    _companyId = null;
+    userName = null;
+    await _secureStorage.delete(key: 'kk_token');
+    final p = await SharedPreferences.getInstance();
+    await p.remove('kk_company');
+    await p.remove('kk_user');
+  }
+
   // ── Google sign-in (server-side OAuth — the app only opens a browser) ──
   /// The browser URL that starts the flow; the server deep-links back to
   /// kukkeep://auth with a one-time code when Google finishes.
@@ -170,7 +214,8 @@ class Api {
   /// as directLogin — 30-day native TTL).
   Future<void> googleExchange(String code) async {
     final res = await http.get(
-        Uri.parse('$base/api/auth/google/app-exchange?code=${Uri.encodeComponent(code)}'));
+        Uri.parse('$base/api/auth/google/app-exchange?code=${Uri.encodeComponent(code)}'))
+        .timeout(_kRequestTimeout);
     dynamic b;
     try { b = jsonDecode(res.body); } catch (_) {
       throw ApiError('Google sign-in failed. Please try again.');

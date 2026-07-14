@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import '../auth_messages.dart';
 import '../note_colors.dart';
 
 // A lightweight freehand drawing canvas. Uses only Flutter's built-in
@@ -57,7 +58,7 @@ class _DrawScreenState extends State<DrawScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not save drawing: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     }
   }
 
