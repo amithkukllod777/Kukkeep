@@ -13,6 +13,11 @@ relevant.
 
 ### SEC-001 — Session token stored in plaintext SharedPreferences
 
+- **Status: FIXED** (branch `claude/kukkeep-fix-critical-bugs`) — the Bearer
+  token now lives in `flutter_secure_storage` (Android Keystore-backed
+  `EncryptedSharedPreferences`); `kk_company`/`kk_user` (non-sensitive) stay
+  in ordinary `SharedPreferences`. Not re-verified on a device (no toolchain
+  in this environment).
 - **Severity:** Major
 - **Affected component:** `lib/api.dart:29-41` (`load()`/`_save()`), backed by
   the `shared_preferences` package
@@ -35,22 +40,46 @@ relevant.
 
 ### SEC-002 — Logout does not revoke the session server-side
 
+- **Status: PARTIALLY FIXED, and now fully verified against the backend**
+  (branch `claude/kukkeep-fix-critical-bugs`) — `Api.logout()` now calls the
+  shared backend's `auth.logout` (`kukbook-erp/server/routers.ts:1328-1334`)
+  best-effort before clearing local state. A follow-up backend read
+  confirmed exactly what that endpoint does and doesn't do:
+  - `auth.logout` only calls `clearSessionCookie` (and logs a
+    `auth.logout` security event) — it clears the **httpOnly cookie** the
+    web client uses, which is irrelevant to a Bearer-token client like
+    KukKeep.
+  - The token itself is a **stateless JWT** (`jose` `SignJWT`/`jwtVerify`,
+    HS256, signed with `ENV.cookieSecret` — see
+    `kukbook-erp/server/_core/sdk.ts:209-281`), verified with no DB or
+    session-table lookup and no blacklist/revocation check
+    (`authenticateRequest`, `kukbook-erp/server/_core/sdk.ts:363-374`).
+    `kukbook-erp`'s Drizzle schema has no session/JWT-id table to revoke
+    against.
+  - **Conclusion:** calling `auth.logout` from KukKeep is worth doing (it
+    logs the event, and matches expected behavior if a session-table/
+    revocation-list is added later) but it does **not**, and today
+    **cannot**, actually invalidate the Bearer token — the JWT remains valid
+    until its own expiry regardless. A true fix needs backend work (a
+    session/JWT-id table plus a revocation check in `authenticateRequest`)
+    and is out of this repo's scope; flagged here for `kukbook-erp` to pick
+    up.
 - **Severity:** Major
-- **Affected component:** `lib/api.dart:43-51` (`Api.logout()`)
+- **Affected component:** `lib/api.dart` (`Api.logout()`);
+  `kukbook-erp/server/routers.ts:1328-1334` (`auth.logout`);
+  `kukbook-erp/server/_core/sdk.ts:209-281,363-374` (JWT issuance/verification)
 - **Attack scenario:** If a device is lost, stolen, or a token is otherwise
-  captured (e.g., via SEC-001) before the user logs out, tapping "Log out" in
-  the app gives a false sense of security: it only clears the local copy. The
-  token itself remains valid server-side (subject to whatever expiry the
-  backend enforces — NOT VERIFIED, out of scope) and can still be replayed by
-  anyone who has a copy of it.
-- **Evidence:** `lib/api.dart:43-51` — no HTTP call precedes the local clear.
-- **Recommended remediation:** Call a server-side session-revocation endpoint
-  (e.g., `auth.logout` / `auth.revokeSession`) before or alongside clearing
-  local state. This requires a corresponding endpoint in `kukbook-erp` if one
-  doesn't already exist — flagged for coordination with that repo.
-- **Verification method:** Static review of every call site of `logout()`
-  (`notes_screen.dart:107-112`, `settings_screen.dart:15-21`) confirms neither
-  wraps it with any additional server call.
+  captured (e.g., via SEC-001, now fixed) before the user logs out, the
+  token remains valid and replayable until its own expiry — logging out in
+  the app does not shorten that window today.
+- **Recommended remediation:** In `kukbook-erp`: add a session/JWT-id table
+  (or a short blacklist) and check it in `authenticateRequest`; then have
+  `auth.logout` (and the new `auth.deleteMyAccount` flow) revoke against it.
+  This is a backend architecture change, not a KukKeep-only fix.
+- **Verification method:** Static review of `lib/api.dart`'s `logout()`, plus
+  a direct read of the relevant `kukbook-erp` source (exact file:line
+  citations above) — this is one of the few findings in this audit verified
+  against the actual backend rather than marked NOT VERIFIED.
 
 ---
 
@@ -142,6 +171,12 @@ relevant.
 
 ### SEC-007 — No request timeouts on most network calls
 
+- **Status: FIXED** (branch `claude/kukkeep-fix-critical-bugs`) — `query()`,
+  `mutate()`, and `googleExchange()` now all apply a consistent 20s
+  `.timeout(...)`; `googleEnabled()` already had its own 6s timeout.
+  `TimeoutException` falls through `friendlyError()`'s generic-exception
+  branch to the safe fallback message (not technical-looking, so this is
+  correct even though it isn't a dedicated "request timed out" string).
 - **Severity:** Minor
 - **Affected component:** `lib/api.dart` — `query()`/`mutate()` and every
   auth call except `googleEnabled()` (which has a 6s timeout) issue

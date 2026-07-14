@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api.dart';
+import '../auth_messages.dart';
 import '../note_colors.dart';
 
 /// AI Memory — "Ask your notes". Sends a natural-language question to the
@@ -25,7 +26,7 @@ class _AiMemoryScreenState extends State<AiMemoryScreen> {
       if (!mounted) return;
       setState(() => _answer = a.isEmpty ? "Sorry, I couldn't find that in your notes." : a);
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = friendlyError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

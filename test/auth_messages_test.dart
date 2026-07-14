@@ -51,4 +51,24 @@ void main() {
           AuthMessages.genericFallback);
     });
   });
+
+  group('friendlyError (general-purpose alias, added for BUG-002)', () {
+    test('never applies the sign-in-only generic message', () {
+      // Unlike friendlyAuthError(e, signIn: true), an unauthorized ApiError
+      // outside the sign-in flow (e.g. a 401 while saving a note) should keep
+      // its own already-friendly message, not the credentials-specific one.
+      final e = ApiError('Session expired. Please log in again.', unauthorized: true);
+      expect(friendlyError(e), 'Session expired. Please log in again.');
+    });
+
+    test('still sanitizes a technical-looking message', () {
+      final e = ApiError('ZodError: invalid_type at keep.create');
+      expect(friendlyError(e), AuthMessages.serverError);
+    });
+
+    test('still maps network failures to the offline message', () {
+      expect(friendlyError(const SocketException('Failed host lookup')),
+          AuthMessages.offline);
+    });
+  });
 }

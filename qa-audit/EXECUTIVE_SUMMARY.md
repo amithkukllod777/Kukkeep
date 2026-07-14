@@ -14,6 +14,19 @@ SDK, and no backend/staging credentials were available in this environment,
 so **no dynamic (running-app) testing was performed** — this is stated
 plainly rather than implied otherwise anywhere in these documents.
 
+> **Update (branch `claude/kukkeep-fix-critical-bugs`, same audit pass):**
+> Both release-blocking items identified below — BUG-001 (silent data loss)
+> and the Google Play Account Deletion policy gap — are now **fixed**, along
+> with SEC-001 (plaintext token), SEC-007 (no timeouts), BUG-002 (raw error
+> text, 19+1 sites), and a partial fix to SEC-002/BUG-004 (server-side
+> logout is now called, though a real backend fix is still needed — see
+> `SECURITY_AUDIT.md` SEC-002). None of this has been re-verified on a
+> device (no toolchain in this environment). The rest of this document is
+> left as originally written (a point-in-time snapshot); status annotations
+> on individual findings are in `BUG_REPORT.md`, `SECURITY_AUDIT.md`, and
+> `PRODUCTION_READINESS_CHECKLIST.md`, and the revised **release decision is
+> GO** (see the bottom of this file) rather than the original CONDITIONAL GO.
+
 ## Overall application health
 
 KukKeep is a small (~15 Dart files, no local database, thin HTTP client to a
@@ -181,31 +194,41 @@ and `COMPETITIVE_ROADMAP.md`.
 
 ## Production-readiness decision
 
-**CONDITIONAL GO.** Do not ship the next release until:
-1. BUG-001 (silent data loss) is fixed, and
-2. The Google Play Account Deletion policy question is definitively resolved
-   (either by adding an in-app deletion path, or by confirming with whoever
-   manages the Play Console listing that the existing email process already
-   satisfies Play's requirement as declared in Data Safety).
+**GO** (revised from the original CONDITIONAL GO — see the update note at the
+top of this document). Both original release-blocking items are now fixed in
+branch `claude/kukkeep-fix-critical-bugs`:
+1. BUG-001 (silent data loss) — fixed.
+2. The Google Play Account Deletion policy gap — fixed: KukKeep's Settings
+   now calls the shared backend's existing `auth.exportMyData` /
+   `auth.deleteMyAccount` endpoints (discovered via a `kukbook-erp` read,
+   no backend changes needed).
 
-Everything else in this audit is real, worth fixing, and prioritized in
-`REMEDIATION_PLAN.md`, but does not by itself justify holding the release.
+Neither fix has been re-verified on a physical device/emulator (none was
+available in this environment) — **recommend a manual smoke test of both
+flows before the next Play submission**, and confirm the Play Console Data
+Safety form reflects the new in-app deletion path. Everything else in this
+audit is real, worth fixing, and prioritized in `REMEDIATION_PLAN.md`, but
+does not by itself justify holding the release.
 
 ## Exact next actions, in priority order
 
-1. Fix BUG-001 (note editor silent data loss) — P0.
-2. Resolve the Play Store Account Deletion policy question — P0.
-3. Fix BUG-002 (raw error text, 19 sites) via a general `friendlyError()`
-   helper — P1.
-4. Fix SEC-002/BUG-004 (server-side logout revocation) — P1, needs
-   `kukbook-erp` coordination.
-5. Fix SEC-001 (encrypt the stored session token) — P1.
-6. Add crash reporting (Firebase Crashlytics) — P1.
-7. Fix BUG-003 (global search) — P1/P2.
-8. Add `flutter test`/`flutter analyze` to both CI workflows once tests
-   exist — P1.
-9. Everything else in `REMEDIATION_PLAN.md`'s Short term / Medium term /
-   Long term tables, in the order listed there.
+1. ~~Fix BUG-001 (note editor silent data loss)~~ — **done**.
+2. ~~Resolve the Play Store Account Deletion policy question~~ — **done**
+   (in-app export/delete wired to existing backend endpoints).
+3. ~~Fix BUG-002 (raw error text, 19+1 sites) via a general
+   `friendlyError()` helper~~ — **done**.
+4. Fix SEC-002/BUG-004 for real (server-side JWT revocation) — needs
+   `kukbook-erp` backend work (a session/JWT-id table); client-side now
+   calls `auth.logout` best-effort as an interim step — **partially done**.
+5. ~~Fix SEC-001 (encrypt the stored session token)~~ — **done**.
+6. Add crash reporting (Firebase Crashlytics) — still open, P1.
+7. Fix BUG-003 (global search) — still open, P1/P2.
+8. Add `flutter test`/`flutter analyze` to both CI workflows now that tests
+   exist — still open, P1.
+9. Manually smoke-test the fixes above on a real device/emulator once one is
+   available — nothing in this pass was dynamically verified.
+10. Everything else in `REMEDIATION_PLAN.md`'s Short term / Medium term /
+    Long term tables, in the order listed there.
 
 ---
 

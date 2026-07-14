@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import '../api.dart';
+import '../auth_messages.dart';
 import '../models.dart';
 import '../note_colors.dart';
 import '../notifications.dart';
@@ -259,7 +260,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       if (id == null) { _snack('Could not save note'); return false; }
       setState(() => _noteId = id);
       return true;
-    } catch (e) { _snack(e.toString()); return false; }
+    } catch (e) { _snack(friendlyError(e)); return false; }
   }
 
   Future<void> _loadAttachments() async {
@@ -277,7 +278,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       if (bytes.length > 8 * 1024 * 1024) { _snack('Image is over 8 MB'); return; }
       if (!await _ensureNoteId()) return;
       await _upload(picked.name, _mimeForName(picked.name, fallback: 'image/jpeg'), base64Encode(bytes), ocr: ocr);
-    } catch (e) { _snack(e.toString()); }
+    } catch (e) { _snack(friendlyError(e)); }
   }
 
   Future<void> _addDrawing() async {
@@ -298,7 +299,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       if (bytes.length > 8 * 1024 * 1024) { _snack('File is over 8 MB'); return; }
       if (!await _ensureNoteId()) return;
       await _upload(f.name, _mimeForName(f.name), base64Encode(bytes), ocr: false);
-    } catch (e) { _snack(e.toString()); }
+    } catch (e) { _snack(friendlyError(e)); }
   }
 
   Future<void> _upload(String name, String type, String b64, {required bool ocr}) async {
@@ -328,7 +329,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       }
       await _loadAttachments();
     } catch (e) {
-      _snack(e.toString());
+      _snack(friendlyError(e));
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
@@ -347,7 +348,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     try {
       await Api.instance.deleteAttachment(a.id);
       await _loadAttachments();
-    } catch (e) { _snack(e.toString()); }
+    } catch (e) { _snack(friendlyError(e)); }
   }
 
   String _mimeForName(String name, {String fallback = 'application/octet-stream'}) {
@@ -406,7 +407,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
     }
   }
@@ -417,19 +418,21 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       await Notifications.instance.cancel(_noteId!); // drop any pending reminder
       await Api.instance.trashNote(_noteId!); // move to Trash (restorable)
       if (mounted) Navigator.pop(context, true);
-    } catch (e) { _snack(e.toString()); }
+    } catch (e) { _snack(friendlyError(e)); }
   }
 
   // System back = Save (Google Keep behavior). Without this, back silently threw
   // away edits — and hid notes that were auto-created by the first attachment.
+  //
+  // _save() already owns every navigation decision: it pops with true on a
+  // successful save, pops with false for a never-touched empty new note, and
+  // — critically — does NOT pop when the save throws (it shows an error and
+  // stays put so the edit isn't lost). _onBack must not second-guess that:
+  // an earlier version popped unconditionally after awaiting _save(), which
+  // discarded the user's edit whenever the save failed (e.g. offline).
   Future<void> _onBack() async {
     if (_saving) return;
-    await _save(); // pops with true after saving; pops false for an empty new note
-    // If save failed (snackbar shown, still mounted), let the user decide —
-    // they can retry, or discard via back again within the error state.
-    if (mounted && Navigator.of(context).canPop()) {
-      Navigator.pop(context, _noteId != null);
-    }
+    await _save();
   }
 
   Future<void> _pickReminder() async {
@@ -478,7 +481,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         }
       });
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     } finally {
       if (mounted) setState(() => _aiBusy = null);
     }
