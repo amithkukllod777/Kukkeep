@@ -31,8 +31,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const _Section('Account'),
             ListTile(
               leading: const Icon(Icons.account_circle_outlined, color: kBrand),
-              title: Text(Api.instance.userName?.isNotEmpty == true ? Api.instance.userName! : 'KukLabs account'),
-              subtitle: const Text('One KukLabs account across every Kuk app'),
+              title: Text(Api.instance.userName?.isNotEmpty == true ? Api.instance.userName! : 'Kuklabs account'),
+              subtitle: const Text('One Kuklabs account across every Kuk app'),
             ),
             const Divider(),
             const _Section('Theme'),
@@ -50,9 +50,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
               child: Wrap(spacing: 10, runSpacing: 10, children: [
-                _TrustTile(Icons.lock_outline, 'Secure notes', 'Protected by your KukLabs account'),
+                _TrustTile(Icons.lock_outline, 'Secure notes', 'Protected by your Kuklabs account'),
                 _TrustTile(Icons.visibility_off_outlined, 'Privacy focused', 'Your notes belong to you'),
-                _TrustTile(Icons.cloud_done_outlined, 'Synced & backed up', 'Safe in the KukLabs cloud'),
+                _TrustTile(Icons.cloud_done_outlined, 'Synced & backed up', 'Safe in the Kuklabs cloud'),
                 _TrustTile(Icons.block_outlined, 'Ad-free', 'No ads, no tracking — ever'),
               ]),
             ),
@@ -60,13 +60,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const _Section('About'),
             const ListTile(
               leading: Icon(Icons.info_outline),
-              title: Text('KukKeep'),
-              subtitle: Text('Notes, lists & reminders • keep.kuklabs.com'),
+              title: Text(kProductName),
+              subtitle: Text('Notes, lists & reminders • $kWebsite'),
             ),
             const ListTile(
               leading: Icon(Icons.verified_outlined),
               title: Text('Version'),
-              subtitle: Text('$kProductName $kAppVersion'),
+              // KUKLABS_BRAND_CONFIG.json versionDisplayFormat: "Version {version} (Build {build})"
+              subtitle: Text('Version $kAppVersion (Build $kAppBuild)'),
             ),
             const SizedBox(height: 8),
             ListTile(

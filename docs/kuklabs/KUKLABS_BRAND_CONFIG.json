@@ -1,0 +1,18 @@
+{
+  "productId": "kukkeep",
+  "productName": "KukKeep",
+  "shortName": "Keep",
+  "packageId": "com.kuklabs.keep",
+  "packageIdNote": "Deviation from the template pattern (com.kuklabs.kukkeep): the app shipped to Google Play as com.kuklabs.keep and a published package id can never change.",
+  "subdomain": "keep.kuklabs.com",
+  "assetPrefix": "kukkeep_",
+  "accentColor": "#2868F0",
+  "accentColorDark": "#5B8CFF",
+  "tagline": "Notes, checklists & reminders — synced with your Kuklabs account.",
+  "iconPrimary": "assets/icon.png",
+  "termsUrl": "https://kuklabs.com/terms",
+  "privacyUrl": "https://kuklabs.com/privacy",
+  "supportUrl": "https://kuklabs.com/support",
+  "systemStatusUrl": "https://status.kuklabs.com",
+  "versionDisplayFormat": "Version {version} (Build {build})"
+}

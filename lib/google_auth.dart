@@ -4,6 +4,8 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'api.dart';
+import 'auth_messages.dart';
+import 'note_colors.dart';
 import 'screens/notes_screen.dart';
 
 /// "Continue with Google" — server-side OAuth in the phone browser.
@@ -68,7 +70,7 @@ class GoogleAuth {
       navigatorKey.currentState?.pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const NotesScreen()), (r) => false);
     } catch (e) {
-      _toast(e.toString());
+      _toast(friendlyAuthError(e, signIn: true));
     }
   }
 
@@ -127,20 +129,22 @@ class GoogleSignInButton extends StatelessWidget {
       future: GoogleAuth.enabled(),
       builder: (context, snap) {
         if (snap.data != true) return const SizedBox.shrink();
+        // authPage.googleButtonHeight 58 / radius 16, text 16/24 Medium on
+        // primary text (KUKLABS_DESIGN_TOKENS.json + §8.3).
         return SizedBox(
-          height: 52,
+          height: 58,
           child: OutlinedButton(
             onPressed: () => GoogleAuth.instance.signIn(),
             style: OutlinedButton.styleFrom(
-              backgroundColor: Colors.white,
-              side: const BorderSide(color: Color(0xFFD1D5DB)),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              backgroundColor: kSurface,
+              side: const BorderSide(color: kBorder),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: const [
               _GoogleG(size: 20),
               SizedBox(width: 10),
-              Text('Continue with Google',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+              Text(AuthMessages.continueWithGoogle,
+                  style: TextStyle(fontSize: 16, height: 24 / 16, fontWeight: FontWeight.w500, color: kTextPrimary, fontFamily: kFont)),
             ]),
           ),
         );

@@ -1,0 +1,56 @@
+{
+  "auth": {
+    "welcomePattern": "Welcome to {productName}",
+    "taglinePattern": "{capability1}, {capability2} & {capability3} \u2014 synced with your Kuklabs account.",
+    "labels": {
+      "login": "Login",
+      "signup": "Sign Up",
+      "createAccount": "Create Account",
+      "continueWithGoogle": "Continue with Google",
+      "forgotPassword": "Forgot Password?",
+      "identity": "Mobile number or email",
+      "password": "Password",
+      "fullName": "Full name"
+    },
+    "legal": {
+      "consent": "By continuing, you agree to our Terms of Use and Privacy Policy",
+      "poweredBy": "Powered by Kuklabs"
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "sections": [
+      "Kuklabs Account",
+      "Workspace / Organisation",
+      "Preferences",
+      "Notifications",
+      "Security",
+      "Data & Privacy",
+      "Help & Support",
+      "About this app"
+    ],
+    "aboutFields": [
+      "Product name",
+      "Description",
+      "Website",
+      "Terms of Use",
+      "Privacy Policy",
+      "Version",
+      "Build"
+    ]
+  },
+  "messages": {
+    "genericSignInError": "We couldn't sign you in. Check your email or mobile number and password, then try again.",
+    "invalidEmail": "Enter a valid email address.",
+    "invalidPhone": "Enter a valid mobile number for the selected country.",
+    "emptyIdentity": "Enter your email address or mobile number.",
+    "emptyPassword": "Enter your password.",
+    "weakPassword": "Use at least 8 characters with at least one letter and one number.",
+    "termsRequired": "Review and accept the Terms of Use and Privacy Policy to continue.",
+    "otpInvalid": "That verification code isn't correct. Check it and try again.",
+    "otpExpired": "That verification code has expired. Request a new code.",
+    "offline": "You're offline. Check your internet connection and try again.",
+    "serverError": "Something went wrong on our side. Please try again in a moment.",
+    "genericFallback": "We couldn't complete that action. Please try again."
+  }
+}

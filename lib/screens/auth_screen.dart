@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../api.dart';
+import '../auth_messages.dart';
 import '../google_auth.dart';
 import '../models.dart';
 import '../note_colors.dart';
@@ -10,11 +11,13 @@ import 'otp_screen.dart';
 
 /// Unified authentication screen — the single logged-out surface for KukKeep.
 ///
-/// Follows the KukLabs Identity & UI standard (KUKLABS_IDENTITY.md §15):
-/// product icon → "Welcome to" → product name → tagline → Login/Sign Up tabs →
-/// form → primary action → OR → Continue with Google → Terms/Privacy →
-/// Powered by KukLabs. Only the product icon, name, tagline and accent are
-/// product-specific; the structure is shared across every Kuk app.
+/// Follows the Kuklabs UI/Auth standard (docs/kuklabs/KUKLABS_MASTER_STANDARD.md
+/// §8, APPROVED_LOGIN_REFERENCE.png): product icon → "Welcome to" → product
+/// name → tagline → Login/Sign Up tabs → form → primary action → OR →
+/// Continue with Google → Terms/Privacy → Powered by Kuklabs. Only the product
+/// icon, name, tagline and accent are product-specific; the structure, sizes
+/// (KUKLABS_DESIGN_TOKENS.json authPage) and content (AuthMessages) are shared
+/// across every Kuk app.
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
   @override
@@ -60,9 +63,10 @@ class _AuthScreenState extends State<AuthScreen> {
   Future<void> _login() async {
     final id = _loginId.text.trim();
     final pass = _loginPass.text;
-    if (id.isEmpty || pass.isEmpty) { setState(() => _error = 'Enter your email and password.'); return; }
+    if (id.isEmpty) { setState(() => _error = AuthMessages.emptyIdentity); return; }
+    if (pass.isEmpty) { setState(() => _error = AuthMessages.emptyPassword); return; }
     // Backend login is email-based; mobile-number login is not available yet.
-    if (!id.contains('@')) { setState(() => _error = 'Please log in with your email address.'); return; }
+    if (!id.contains('@')) { setState(() => _error = 'Mobile-number login is coming soon — please log in with your email address.'); return; }
     setState(() { _loading = true; _error = null; });
     try {
       await Api.instance.login(id, pass);
@@ -79,7 +83,7 @@ class _AuthScreenState extends State<AuthScreen> {
         _pickCompany(companies);
       }
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = friendlyAuthError(e, signIn: true));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -91,11 +95,13 @@ class _AuthScreenState extends State<AuthScreen> {
     final email = _email.text.trim();
     final phone = _phone.text.trim();
     final pass = _signupPass.text;
-    if (name.length < 2) { setState(() => _error = 'Enter your name.'); return; }
-    if (!email.contains('@')) { setState(() => _error = 'Enter a valid email.'); return; }
-    if (phone.replaceAll(RegExp(r'[^0-9]'), '').length < 10) { setState(() => _error = 'Enter a valid mobile number.'); return; }
-    if (pass.length < 6) { setState(() => _error = 'Password must be at least 6 characters.'); return; }
-    if (!_accepted) { setState(() => _error = 'Please accept the Terms & Privacy Policy.'); return; }
+    if (name.length < 2) { setState(() => _error = 'Enter your full name.'); return; }
+    if (!email.contains('@')) { setState(() => _error = AuthMessages.invalidEmail); return; }
+    if (phone.replaceAll(RegExp(r'[^0-9]'), '').length < 10) { setState(() => _error = AuthMessages.invalidPhone); return; }
+    if (pass.length < 8 || !pass.contains(RegExp(r'[A-Za-z]')) || !pass.contains(RegExp(r'[0-9]'))) {
+      setState(() => _error = AuthMessages.weakPassword); return;
+    }
+    if (!_accepted) { setState(() => _error = AuthMessages.termsRequired); return; }
     setState(() { _loading = true; _error = null; });
     try {
       await Api.instance.register(name: name, email: email, phone: phone, password: pass);
@@ -103,7 +109,7 @@ class _AuthScreenState extends State<AuthScreen> {
       Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => OtpScreen(email: email, name: name, phone: phone)));
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = friendlyAuthError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -159,25 +165,20 @@ class _AuthScreenState extends State<AuthScreen> {
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: h),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
+                // authPage.contentMaxWidthMobile (KUKLABS_DESIGN_TOKENS.json)
+                constraints: const BoxConstraints(maxWidth: 420),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // ── Collage header + product icon ──
+                      // ── Collage header + product icon (assets/logo.png) ──
                       SizedBox(
                         height: headerH,
                         child: Stack(alignment: Alignment.center, children: [
                           const Positioned.fill(child: _CollageBackground()),
-                          Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(iconSize * 0.24),
-                              boxShadow: const [BoxShadow(color: Color(0x33101828), blurRadius: 22, offset: Offset(0, 10))],
-                            ),
-                            child: _KeepIcon(size: iconSize),
-                          ),
+                          Image.asset(kLogoAsset, width: iconSize, height: iconSize),
                         ]),
                       ),
                       const SizedBox(height: 2),
@@ -192,9 +193,9 @@ class _AuthScreenState extends State<AuthScreen> {
                         style: TextStyle(fontSize: nameSize, height: 1.1, fontWeight: FontWeight.w800, fontFamily: kFont),
                       ),
                       SizedBox(height: tight ? 4 : 6),
-                      Text('Notes, checklists & reminders — synced with your KukLabs account.',
+                      Text(AuthMessages.tagline,
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: tight ? 14 : 15, height: 1.35, color: kTextSecondary, fontFamily: kFont)),
+                          style: TextStyle(fontSize: tight ? 14 : 15, height: 1.35, color: kTextMuted, fontFamily: kFont)),
                       SizedBox(height: gap + 4),
                       _tabs(),
                       SizedBox(height: gap),
@@ -225,18 +226,19 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  // ── Login / Sign Up tabs ──
+  // ── Login / Sign Up tabs (56 high, radius 16 — authPage tokens) ──
   Widget _tabs() {
     return Container(
+      height: 56,
       decoration: BoxDecoration(
         color: kSurface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: kBorderSubtle),
       ),
       child: Row(children: [
-        Expanded(child: _tabItem('Login', 0)),
+        Expanded(child: _tabItem(AuthMessages.login, 0)),
         Container(width: 1, height: 28, color: kBorderSubtle),
-        Expanded(child: _tabItem('Sign Up', 1)),
+        Expanded(child: _tabItem(AuthMessages.signup, 1)),
       ]),
     );
   }
@@ -245,29 +247,26 @@ class _AuthScreenState extends State<AuthScreen> {
     final active = _tab == i;
     return InkWell(
       onTap: () => _switchTab(i),
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        child: Column(children: [
-          Text(label, style: TextStyle(
-            fontSize: 16, fontWeight: FontWeight.w600, fontFamily: kFont,
-            color: active ? kBrand : kTextSecondary)),
-          const SizedBox(height: 8),
-          Container(height: 2, width: 96,
-            decoration: BoxDecoration(
-              color: active ? kBrand : Colors.transparent,
-              borderRadius: BorderRadius.circular(2))),
-        ]),
-      ),
+      borderRadius: BorderRadius.circular(16),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Text(label, style: TextStyle(
+          fontSize: 16, height: 22 / 16, fontWeight: FontWeight.w600, fontFamily: kFont,
+          color: active ? kBrand : kTextSecondary)),
+        const SizedBox(height: 6),
+        Container(height: 2, width: 96,
+          decoration: BoxDecoration(
+            color: active ? kBrand : Colors.transparent,
+            borderRadius: BorderRadius.circular(2))),
+      ]),
     );
   }
 
   Widget _loginForm() {
     return Column(children: [
-      _field(controller: _loginId, hint: 'Mobile Number or Email', icon: Icons.smartphone_outlined,
+      _field(controller: _loginId, hint: AuthMessages.identity, icon: Icons.smartphone_outlined,
           keyboard: TextInputType.emailAddress, autofill: const [AutofillHints.username]),
       const SizedBox(height: 14),
-      _field(controller: _loginPass, hint: 'Password', icon: Icons.lock_outline,
+      _field(controller: _loginPass, hint: AuthMessages.password, icon: Icons.lock_outline,
           obscure: _loginObscure, autofill: const [AutofillHints.password],
           onSubmit: (_) => _login(),
           suffix: _eyeToggle(_loginObscure, () => setState(() => _loginObscure = !_loginObscure))),
@@ -276,8 +275,8 @@ class _AuthScreenState extends State<AuthScreen> {
         alignment: Alignment.centerRight,
         child: GestureDetector(
           onTap: () => _open('${kWebBase}/forgot-password'),
-          child: const Text('Forgot Password?',
-              style: TextStyle(color: kBrand, fontSize: 14, fontWeight: FontWeight.w600, fontFamily: kFont)),
+          child: const Text(AuthMessages.forgotPassword,
+              style: TextStyle(color: kBrand, fontSize: 14, height: 20 / 14, fontWeight: FontWeight.w500, fontFamily: kFont)),
         ),
       ),
     ]);
@@ -285,14 +284,14 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Widget _signupForm() {
     return Column(children: [
-      _field(controller: _name, hint: 'Full Name', icon: Icons.person_outline,
+      _field(controller: _name, hint: AuthMessages.fullName, icon: Icons.person_outline,
           keyboard: TextInputType.name, capitalize: TextCapitalization.words),
       const SizedBox(height: 14),
-      _field(controller: _email, hint: 'Email', icon: Icons.mail_outline, keyboard: TextInputType.emailAddress),
+      _field(controller: _email, hint: 'Email address', icon: Icons.mail_outline, keyboard: TextInputType.emailAddress),
       const SizedBox(height: 14),
-      _field(controller: _phone, hint: 'Mobile Number', icon: Icons.smartphone_outlined, keyboard: TextInputType.phone),
+      _field(controller: _phone, hint: 'Mobile number', icon: Icons.smartphone_outlined, keyboard: TextInputType.phone),
       const SizedBox(height: 14),
-      _field(controller: _signupPass, hint: 'Password', icon: Icons.lock_outline,
+      _field(controller: _signupPass, hint: AuthMessages.password, icon: Icons.lock_outline,
           obscure: _signupObscure,
           suffix: _eyeToggle(_signupObscure, () => setState(() => _signupObscure = !_signupObscure))),
       const SizedBox(height: 12),
@@ -323,27 +322,32 @@ class _AuthScreenState extends State<AuthScreen> {
     List<String>? autofill,
     ValueChanged<String>? onSubmit,
   }) {
+    // authPage.inputHeight 58 / radius 16 (KUKLABS_DESIGN_TOKENS.json)
     return Container(
+      height: 58,
       decoration: BoxDecoration(
         color: kSurface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: kBorder),
       ),
-      child: TextField(
-        controller: controller,
-        obscureText: obscure,
-        keyboardType: keyboard,
-        textCapitalization: capitalize,
-        autofillHints: autofill,
-        onSubmitted: onSubmit,
-        style: const TextStyle(fontSize: 16, color: kTextPrimary, fontFamily: kFont),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(color: kPlaceholder, fontSize: 16, fontFamily: kFont),
-          prefixIcon: Icon(icon, size: 22, color: kTextMuted),
-          suffixIcon: suffix,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 15),
+      child: Center(
+        child: TextField(
+          controller: controller,
+          obscureText: obscure,
+          keyboardType: keyboard,
+          textCapitalization: capitalize,
+          autofillHints: autofill,
+          onSubmitted: onSubmit,
+          style: const TextStyle(fontSize: 16, height: 24 / 16, color: kTextPrimary, fontFamily: kFont),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: kPlaceholder, fontSize: 16, fontFamily: kFont),
+            prefixIcon: Icon(icon, size: 22, color: kTextMuted),
+            suffixIcon: suffix,
+            border: InputBorder.none,
+            isCollapsed: false,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+          ),
         ),
       ),
     );
@@ -355,18 +359,19 @@ class _AuthScreenState extends State<AuthScreen> {
       );
 
   Widget _primaryButton() {
-    final label = _tab == 0 ? 'Login' : 'Create Account';
+    final label = _tab == 0 ? AuthMessages.login : AuthMessages.createAccount;
+    // authPage.buttonHeight 58 / radius 16 (KUKLABS_DESIGN_TOKENS.json)
     return SizedBox(
-      height: 52,
+      height: 58,
       child: FilledButton(
         onPressed: _loading ? null : (_tab == 0 ? _login : _signup),
         style: FilledButton.styleFrom(
           backgroundColor: kBrand,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
         child: _loading
             ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
-            : Text(label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, fontFamily: kFont)),
+            : Text(label, style: const TextStyle(fontSize: 17, height: 24 / 17, fontWeight: FontWeight.w600, fontFamily: kFont)),
       ),
     );
   }
@@ -384,88 +389,27 @@ class _AuthScreenState extends State<AuthScreen> {
     return Text.rich(
       TextSpan(style: style, children: [
         const TextSpan(text: 'By continuing, you agree to our '),
-        WidgetSpan(child: GestureDetector(onTap: () => _open('https://kuklabs.com/terms'),
+        WidgetSpan(child: GestureDetector(onTap: () => _open(kTermsUrl),
             child: const Text('Terms of Use', style: link))),
         const TextSpan(text: ' and '),
-        WidgetSpan(child: GestureDetector(onTap: () => _open('https://kuklabs.com/privacy'),
+        WidgetSpan(child: GestureDetector(onTap: () => _open(kPrivacyUrl),
             child: const Text('Privacy Policy', style: link))),
       ]),
       textAlign: TextAlign.center,
     );
   }
 
+  // §6.3: "Powered by" 400 muted + "Kuklabs" 600 secondary — never the accent.
   Widget _poweredBy() => Text.rich(
         const TextSpan(children: [
-          TextSpan(text: 'Powered by ', style: TextStyle(color: kTextMuted, fontSize: 13, fontFamily: kFont)),
-          TextSpan(text: 'KukLabs', style: TextStyle(color: kBrand, fontSize: 13, fontWeight: FontWeight.w700, fontFamily: kFont)),
+          TextSpan(text: '${AuthMessages.poweredBy} ', style: TextStyle(color: kTextMuted, fontSize: 13, height: 18 / 13, fontFamily: kFont)),
+          TextSpan(text: AuthMessages.poweredByBrand, style: TextStyle(color: kTextSecondary, fontSize: 13, height: 18 / 13, fontWeight: FontWeight.w600, fontFamily: kFont)),
         ]),
         textAlign: TextAlign.center,
       );
 }
 
-/// The KukKeep product icon — a blue rounded-square with a folded corner and a
-/// white "note with checkmark". Drawn (no asset) so it renders crisp at any
-/// size and never falls back to the KukLabs corporate "K".
-class _KeepIcon extends StatelessWidget {
-  final double size;
-  const _KeepIcon({required this.size});
-  @override
-  Widget build(BuildContext context) => CustomPaint(size: Size.square(size), painter: _KeepIconPainter());
-}
-
-class _KeepIconPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size s) {
-    final r = RRect.fromRectAndRadius(Offset.zero & s, Radius.circular(s.width * 0.24));
-    // Rounded-square tile, brand gradient (navy → blue).
-    canvas.drawRRect(r, Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topLeft, end: Alignment.bottomRight,
-        colors: [kBrand, kBrandDark],
-      ).createShader(Offset.zero & s));
-    // Folded top-right corner.
-    canvas.save();
-    canvas.clipRRect(r);
-    final fold = s.width * 0.26;
-    final foldPath = Path()
-      ..moveTo(s.width - fold, 0)
-      ..lineTo(s.width, fold)
-      ..lineTo(s.width - fold, fold)
-      ..close();
-    canvas.drawPath(foldPath, Paint()..color = Colors.white.withOpacity(0.22));
-    canvas.restore();
-    // White note-with-check in the centre.
-    final white = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = s.width * 0.075
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final box = Rect.fromCenter(center: s.center(Offset.zero), width: s.width * 0.5, height: s.width * 0.5);
-    // Open-cornered rounded box (gap at top-right where the check exits).
-    final boxPath = Path()
-      ..moveTo(box.right, box.top + box.height * 0.30)
-      ..lineTo(box.right, box.bottom - s.width * 0.08)
-      ..arcToPoint(Offset(box.right - s.width * 0.08, box.bottom), radius: Radius.circular(s.width * 0.08))
-      ..lineTo(box.left + s.width * 0.08, box.bottom)
-      ..arcToPoint(Offset(box.left, box.bottom - s.width * 0.08), radius: Radius.circular(s.width * 0.08))
-      ..lineTo(box.left, box.top + s.width * 0.08)
-      ..arcToPoint(Offset(box.left + s.width * 0.08, box.top), radius: Radius.circular(s.width * 0.08))
-      ..lineTo(box.right - box.width * 0.30, box.top);
-    canvas.drawPath(boxPath, white);
-    // Checkmark.
-    final check = Path()
-      ..moveTo(box.left + box.width * 0.24, box.top + box.height * 0.52)
-      ..lineTo(box.left + box.width * 0.44, box.top + box.height * 0.72)
-      ..lineTo(box.right + box.width * 0.06, box.top - box.height * 0.02);
-    canvas.drawPath(check, white..strokeWidth = s.width * 0.09);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Faded, tilted note cards behind the product icon (the KukLabs auth collage).
+/// Faded, tilted note cards behind the product icon (the Kuklabs auth collage).
 class _CollageBackground extends StatelessWidget {
   const _CollageBackground();
   @override

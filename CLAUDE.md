@@ -14,7 +14,7 @@ This app follows the Kuklabs identity + infrastructure mandate — see
 Cloud/Firebase project.** Never build separate auth, users table, password
 system, session system, Firebase project or Google OAuth client for this app.
 
-- Login/signup uses the shared KukLabs account. The app talks to the shared
+- Login/signup uses the shared Kuklabs account. The app talks to the shared
   backend at `https://keep.kuklabs.com` (tRPC over HTTP) — it does **not** have
   its own server or database. The `keep` router + `kuk_keep_*` tables live in
   the shared backend (kukbook-erp), against the one shared MySQL DB.
@@ -23,11 +23,28 @@ system, session system, Firebase project or Google OAuth client for this app.
 - UI follows the shared standard: **Inter** font, shared neutral+semantic
   colours, per-product accent (`#2868F0`), no serif in product UI.
 
+## ⚠️ KUKLABS UI/AUTH STANDARD (MANDATORY)
+Before changing authentication, branding, navigation, profile, app version
+display, content or shared UI, read `docs/kuklabs/`:
+`KUKLABS_MASTER_STANDARD.md` (full standard) · `KUKLABS_AGENT_INSTRUCTIONS.md` ·
+`KUKLABS_BRAND_CONFIG.json` (this app's product values) ·
+`KUKLABS_DESIGN_TOKENS.json` (sizes/colours) ·
+`KUKLABS_AUTH_CONTENT_TEMPLATES.json` (approved copy) ·
+`APPROVED_LOGIN_REFERENCE.png` (visual baseline) · `DEVELOPER_HANDOFF.md`.
+Canonical source of truth: `amithkukllod777/kukbook-erp`. Only the product
+icon, name, tagline, accent colour and product-specific modules may change —
+never the auth shell, control sizes, Google button rules, error-message
+policy, profile structure or version-display format.
+
 ## Structure
 - `lib/` — Dart source. `lib/screens/` — screens (auth, notes, editor, draw,
   settings, AI memory, OTP). `lib/api.dart` — tRPC client. `lib/google_auth.dart`
-  — browser OAuth + deep-link. `lib/note_colors.dart` — design tokens + version.
-- `assets/` — launcher icon + logo. `google-services.json` — Firebase config
+  — browser OAuth + deep-link. `lib/auth_messages.dart` — approved auth
+  content + friendly-error mapping (`docs/kuklabs/KUKLABS_AUTH_CONTENT_TEMPLATES.json`).
+  `lib/note_colors.dart` — design tokens + version/build.
+- `assets/icon.png` (launcher icon source) and `assets/logo.png` (in-app
+  wordmark icon, transparent) are the product icon — regenerate both together
+  from the same master mark. `google-services.json` — Firebase config
   (public client config).
 
 ## Build (GitHub Actions → releases)
