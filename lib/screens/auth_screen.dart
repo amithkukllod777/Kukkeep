@@ -275,7 +275,7 @@ class _AuthScreenState extends State<AuthScreen> {
       Align(
         alignment: Alignment.centerRight,
         child: GestureDetector(
-          onTap: () => _open('${kWebBase}/forgot-password'),
+          onTap: () => _open('$kWebBase/forgot-password'),
           child: const Text(AuthMessages.forgotPassword,
               style: TextStyle(color: kBrand, fontSize: 14, height: 20 / 14, fontWeight: FontWeight.w500, fontFamily: kFont)),
         ),

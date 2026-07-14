@@ -496,7 +496,9 @@ class _NotesScreenState extends State<NotesScreen> {
                   onTap: () => _setView('label', label: l),
                   trailing: PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, size: 18),
-                    onSelected: (v) { if (v == 'rename') _renameLabel(l); else if (v == 'delete') _deleteLabel(l); },
+                    onSelected: (v) {
+                      if (v == 'rename') { _renameLabel(l); } else if (v == 'delete') { _deleteLabel(l); }
+                    },
                     itemBuilder: (_) => const [
                       PopupMenuItem(value: 'rename', child: Text('Rename')),
                       PopupMenuItem(value: 'delete', child: Text('Delete')),
