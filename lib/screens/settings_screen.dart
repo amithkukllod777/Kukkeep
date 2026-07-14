@@ -1,5 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../api.dart';
+import '../auth_messages.dart';
 import '../main.dart';
 import '../notifications.dart';
 import '../note_colors.dart';
@@ -12,12 +17,82 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  bool _exporting = false;
+  bool _deleting = false;
+
   Future<void> _logout() async {
     await Notifications.instance.cancelAll(); // old account's reminders must not fire
     await Api.instance.logout();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const AuthScreen()), (r) => false);
+  }
+
+  Future<void> _open(String url) async {
+    try { await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication); } catch (_) {}
+  }
+
+  void _snack(String m) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
+
+  // GDPR/DPDP data export (auth.exportMyData) — see qa-audit/REMEDIATION_PLAN.md.
+  Future<void> _exportData() async {
+    setState(() => _exporting = true);
+    try {
+      final data = await Api.instance.exportMyData();
+      final pretty = const JsonEncoder.withIndent('  ').convert(data);
+      if (!mounted) return;
+      await showDialog<void>(context: context, builder: (_) => AlertDialog(
+        title: const Text('Your account data'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(child: SelectableText(pretty, style: const TextStyle(fontSize: 12, fontFamily: 'monospace'))),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () { Clipboard.setData(ClipboardData(text: pretty)); _snack('Copied to clipboard'); },
+            child: const Text('Copy'),
+          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+        ],
+      ));
+    } catch (e) {
+      _snack(friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  // Account deletion (auth.deleteMyAccount) — Google Play requires an in-app
+  // path for apps with in-app account creation; see qa-audit/PRODUCTION_READINESS_CHECKLIST.md.
+  Future<void> _deleteAccount() async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Delete your account?'),
+      content: const Text(
+          'This permanently anonymizes your Kuklabs account and removes your '
+          'access to it. Notes and other content tied to a shared workspace '
+          'may be retained where required by law. This cannot be undone.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete account', style: TextStyle(color: Colors.red))),
+      ]));
+    if (ok != true) return;
+    setState(() => _deleting = true);
+    try {
+      await Notifications.instance.cancelAll();
+      await Api.instance.deleteAccount();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const AuthScreen()), (r) => false);
+    } catch (e) {
+      // e.g. "you still own a company — transfer ownership first" — the
+      // server's own message here is already actionable, not technical.
+      _snack(friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
   }
 
   @override
@@ -57,6 +132,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ]),
             ),
             const Divider(),
+            const _Section('Data & Privacy'),
+            ListTile(
+              leading: _exporting
+                  ? const SizedBox(width: 22, height: 22, child: Padding(padding: EdgeInsets.all(2), child: CircularProgressIndicator(strokeWidth: 2, color: kBrand)))
+                  : const Icon(Icons.download_outlined, color: kBrand),
+              title: const Text('Export my data'),
+              subtitle: const Text('Download your Kuklabs account data'),
+              onTap: _exporting ? null : _exportData,
+            ),
+            ListTile(
+              leading: const Icon(Icons.description_outlined, color: kBrand),
+              title: const Text('Terms of Use'),
+              onTap: () => _open('https://kuklabs.com/terms'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.privacy_tip_outlined, color: kBrand),
+              title: const Text('Privacy Policy'),
+              onTap: () => _open('https://kuklabs.com/privacy'),
+            ),
+            const Divider(),
             const _Section('About'),
             const ListTile(
               leading: Icon(Icons.info_outline),
@@ -75,6 +170,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: const Text('Log out', style: TextStyle(color: Colors.red)),
               onTap: _logout,
             ),
+            const Divider(),
+            const _Section('Danger Zone'),
+            ListTile(
+              leading: _deleting
+                  ? const SizedBox(width: 22, height: 22, child: Padding(padding: EdgeInsets.all(2), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red)))
+                  : const Icon(Icons.delete_forever, color: Colors.red),
+              title: const Text('Delete account', style: TextStyle(color: Colors.red)),
+              subtitle: const Text('Permanently delete your Kuklabs account'),
+              onTap: _deleting ? null : _deleteAccount,
+            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
