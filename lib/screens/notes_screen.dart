@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,12 +28,18 @@ class _NotesScreenState extends State<NotesScreen> {
   String _view = 'notes';
   String? _activeLabel;
   List<Note> _notes = [];      // notes for the current view
+  List<Note> _liveNotes = [];     // non-archived, non-trashed (search corpus part 1)
+  List<Note> _archivedNotes = []; // archived, non-trashed (search corpus part 2)
   List<String> _labels = [];   // labels across live notes (for the drawer)
   bool _grid = true;
   bool _loading = true;
   String _search = '';
   final _searchCtrl = TextEditingController();
   String? _error;
+
+  // Multi-select (bulk actions) — long-press a card to enter.
+  final Set<int> _selected = {};
+  bool get _selecting => _selected.isNotEmpty;
 
   bool get _isTrash => _view == 'trash';
   bool get _isArchive => _view == 'archive';
@@ -68,9 +75,14 @@ class _NotesScreenState extends State<NotesScreen> {
     setState(() { if (_notes.isEmpty) _loading = true; _error = null; });
     try {
       final live = await Api.instance.notes(); // archived:false, trashed:false
+      // Always fetch archived too (not just when Archive is the open view) so
+      // search can span the whole live+archived corpus regardless of which
+      // view is open (BUG-003 — search used to be silently scoped to
+      // whichever view was on screen).
+      final archived = await Api.instance.notes(archived: true);
       List<Note> display;
       if (_isArchive) {
-        display = await Api.instance.notes(archived: true);
+        display = archived;
       } else if (_isTrash) {
         display = await Api.instance.notes(trashed: true);
       } else {
@@ -79,7 +91,12 @@ class _NotesScreenState extends State<NotesScreen> {
       final labelSet = <String>{};
       for (final n in live) { labelSet.addAll(n.labels); }
       if (!mounted) return;
-      setState(() { _notes = display; _labels = labelSet.toList()..sort(); });
+      setState(() {
+        _notes = display;
+        _liveNotes = live;
+        _archivedNotes = archived;
+        _labels = labelSet.toList()..sort();
+      });
       _rescheduleReminders(live); // keep OS reminders in sync with the notes
     } on ApiError catch (e) {
       if (e.unauthorized) { _logout(); return; }
@@ -114,16 +131,19 @@ class _NotesScreenState extends State<NotesScreen> {
 
   void _setView(String v, {String? label}) {
     _searchCtrl.clear();
-    setState(() { _view = v; _activeLabel = label; _search = ''; });
+    setState(() { _view = v; _activeLabel = label; _search = ''; _selected.clear(); });
     Navigator.of(context).pop(); // close drawer
     _load();
   }
 
   List<Note> get _filtered {
-    var list = _notes;
+    final q = _search.trim().toLowerCase();
+    // A non-empty search spans the whole live+archived corpus regardless of
+    // which view is open (BUG-003) — Trash stays separately scoped, matching
+    // the convention that deleted items don't surface in general search.
+    var list = (q.isNotEmpty && !_isTrash) ? [..._liveNotes, ..._archivedNotes] : _notes;
     if (_view == 'reminders') list = list.where((n) => n.reminderAt != null).toList();
     if (_view == 'label' && _activeLabel != null) list = list.where((n) => n.labels.contains(_activeLabel)).toList();
-    final q = _search.trim().toLowerCase();
     if (q.isNotEmpty) {
       list = list.where((n) =>
         n.title.toLowerCase().contains(q) ||
@@ -136,9 +156,46 @@ class _NotesScreenState extends State<NotesScreen> {
 
   Future<void> _openEditor([Note? note]) async {
     if (_isTrash) return; // trashed notes aren't editable
+    if (_selecting && note != null) { _toggleSelect(note.id); return; }
     final changed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => NoteEditorScreen(note: note)));
     if (changed == true) _load();
+  }
+
+  // ── Bulk actions (long-press a card to enter multi-select) ──
+  void _toggleSelect(int id) {
+    setState(() { if (!_selected.add(id)) _selected.remove(id); });
+  }
+
+  void _clearSelection() => setState(_selected.clear);
+
+  Future<void> _bulkArchive() async {
+    // In the Archive view every selected note is already archived, so this
+    // action un-archives; everywhere else it archives — a plain toggle of
+    // "the opposite of the current view".
+    final archiving = !_isArchive;
+    final ids = _selected.toList();
+    setState(_selected.clear);
+    try {
+      for (final id in ids) {
+        if (archiving) Notifications.instance.cancel(id); // archiving stops its reminder
+        await Api.instance.updateNote({'id': id, 'archived': archiving});
+      }
+      _load();
+    } catch (e) { _snack(friendlyError(e)); }
+  }
+
+  Future<void> _bulkTrash() async {
+    final ids = _selected.toList();
+    setState(_selected.clear);
+    try {
+      for (final id in ids) {
+        Notifications.instance.cancel(id);
+        await Api.instance.trashNote(id);
+      }
+      _load();
+      if (mounted) _snack('${ids.length} note${ids.length == 1 ? '' : 's'} moved to Trash');
+    } catch (e) { _snack(friendlyError(e)); }
   }
 
   Future<void> _toggleItem(Note n, int idx) async {
@@ -239,7 +296,9 @@ class _NotesScreenState extends State<NotesScreen> {
     }
   }
 
-  void _snack(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  void _snack(String m) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
 
   String get _title {
     switch (_view) {
@@ -251,14 +310,40 @@ class _NotesScreenState extends State<NotesScreen> {
     }
   }
 
+  // Bulk-action app bar shown while one or more cards are long-press-selected.
+  AppBar _selectionAppBar() {
+    return AppBar(
+      backgroundColor: kBrand,
+      foregroundColor: Colors.white,
+      leading: IconButton(
+        tooltip: 'Cancel selection',
+        icon: const Icon(Icons.close),
+        onPressed: _clearSelection,
+      ),
+      title: Text('${_selected.length} selected'),
+      actions: [
+        IconButton(
+          tooltip: _isArchive ? 'Unarchive selected' : 'Archive selected',
+          icon: Icon(_isArchive ? Icons.unarchive_outlined : Icons.archive_outlined),
+          onPressed: _bulkArchive,
+        ),
+        IconButton(
+          tooltip: 'Move selected to Trash',
+          icon: const Icon(Icons.delete_outline),
+          onPressed: _bulkTrash,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final list = _filtered;
     final pinned = _isTrash ? <Note>[] : list.where((n) => n.pinned).toList();
     final others = _isTrash ? list : list.where((n) => !n.pinned).toList();
     return Scaffold(
-      drawer: _buildDrawer(),
-      appBar: AppBar(
+      drawer: _selecting ? null : _buildDrawer(),
+      appBar: _selecting ? _selectionAppBar() : AppBar(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -296,6 +381,7 @@ class _NotesScreenState extends State<NotesScreen> {
                   hintText: 'Search your notes',
                   prefixIcon: const Icon(Icons.search, size: 20),
                   suffixIcon: _search.isEmpty ? null : IconButton(
+                    tooltip: 'Clear search',
                     icon: const Icon(Icons.close, size: 18),
                     onPressed: () { _searchCtrl.clear(); setState(() => _search = ''); },
                   ),
@@ -474,99 +560,130 @@ class _NotesScreenState extends State<NotesScreen> {
   }
 
   Widget _card(Note n) {
+    final selected = _selected.contains(n.id);
     return GestureDetector(
-      onTap: () => _openEditor(n),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: noteColor(n.color),
-          border: n.color == 'default' ? Border.all(color: Colors.black.withOpacity(0.05)) : null,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: const [BoxShadow(color: kCardShadow, blurRadius: 12, offset: Offset(0, 4))],
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (n.coverImage != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  Api.instance.absoluteUrl(n.coverImage!),
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                  loadingBuilder: (c, child, p) => p == null
-                      ? child
-                      : Container(height: 120, alignment: Alignment.center, color: Colors.black12,
+      onTap: () => _selecting ? _toggleSelect(n.id) : _openEditor(n),
+      onLongPress: _isTrash ? null : () => _toggleSelect(n.id),
+      child: Stack(children: [
+        Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: noteColor(n.color),
+            border: selected
+                ? Border.all(color: kBrand, width: 2)
+                : (n.color == 'default' ? Border.all(color: Colors.black.withOpacity(0.05)) : null),
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: const [BoxShadow(color: kCardShadow, blurRadius: 12, offset: Offset(0, 4))],
+          ),
+          // Selection mode suppresses each control's own tap so the whole card
+          // toggles selection instead of firing pin/checklist/archive/trash actions.
+          child: IgnorePointer(
+            ignoring: _selecting,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (n.coverImage != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: CachedNetworkImage(
+                      imageUrl: Api.instance.absoluteUrl(n.coverImage!),
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                      placeholder: (_, __) => Container(height: 120, alignment: Alignment.center, color: Colors.black12,
                           child: const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if (n.title.isNotEmpty)
-              Expanded(child: _hl(n.title, const TextStyle(fontWeight: FontWeight.w700, fontSize: 17, color: Colors.black87, height: 1.25, fontFamily: kDisplayFont)))
-            else const Spacer(),
-            if (!_isTrash)
-              InkWell(onTap: () => _quick(n, {'pinned': !n.pinned}),
-                child: Icon(n.pinned ? Icons.push_pin : Icons.push_pin_outlined, size: 18, color: n.pinned ? kBrand : Colors.black38)),
-          ]),
-          if (n.title.isNotEmpty) const SizedBox(height: 6),
-          if (n.type == 'checklist') ...[
-            // Cap the card height like Google Keep: unchecked items first (up to
-            // the cap); checked ones collapse into a "completed" summary line.
-            ...(() {
-              final unchecked = n.items.asMap().entries.where((e) => !e.value.done).toList();
-              final doneCount = n.items.length - unchecked.length;
-              return <Widget>[
-                ...unchecked.take(_kCardItemCap).map((e) => InkWell(
-                      onTap: _isTrash ? null : () => _toggleItem(n, e.key),
-                      child: Padding(padding: const EdgeInsets.symmetric(vertical: 3.5), child: Row(children: [
-                        const Icon(Icons.check_box_outline_blank, size: 18, color: Colors.black45),
-                        const SizedBox(width: 8),
-                        Expanded(child: _hl(e.value.text, const TextStyle(fontSize: 14, height: 1.3, color: Colors.black87), maxLines: 2)),
-                      ])))),
-                if (unchecked.length > _kCardItemCap)
-                  Padding(padding: const EdgeInsets.only(top: 4, left: 2),
-                    child: Text('+ ${unchecked.length - _kCardItemCap} more items', style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w500))),
-                if (doneCount > 0)
-                  Padding(padding: const EdgeInsets.only(top: 5, left: 2), child: Row(children: [
-                    const Icon(Icons.check, size: 14, color: Colors.black38),
-                    const SizedBox(width: 6),
-                    Text('$doneCount completed item${doneCount == 1 ? '' : 's'}', style: const TextStyle(fontSize: 12, color: Colors.black45)),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (n.title.isNotEmpty)
+                  Expanded(child: _hl(n.title, const TextStyle(fontWeight: FontWeight.w700, fontSize: 17, color: Colors.black87, height: 1.25, fontFamily: kDisplayFont)))
+                else const Spacer(),
+                if (!_isTrash)
+                  Tooltip(
+                    message: n.pinned ? 'Unpin' : 'Pin',
+                    child: InkWell(onTap: () => _quick(n, {'pinned': !n.pinned}),
+                      child: Icon(n.pinned ? Icons.push_pin : Icons.push_pin_outlined, size: 18, color: n.pinned ? kBrand : Colors.black38)),
+                  ),
+              ]),
+              if (n.title.isNotEmpty) const SizedBox(height: 6),
+              if (n.type == 'checklist') ...[
+                // Cap the card height like Google Keep: unchecked items first (up to
+                // the cap); checked ones collapse into a "completed" summary line.
+                ...(() {
+                  final unchecked = n.items.asMap().entries.where((e) => !e.value.done).toList();
+                  final doneCount = n.items.length - unchecked.length;
+                  return <Widget>[
+                    ...unchecked.take(_kCardItemCap).map((e) => Tooltip(
+                          message: 'Mark done',
+                          child: InkWell(
+                            onTap: _isTrash ? null : () => _toggleItem(n, e.key),
+                            child: Padding(padding: const EdgeInsets.symmetric(vertical: 3.5), child: Row(children: [
+                              const Icon(Icons.check_box_outline_blank, size: 18, color: Colors.black45),
+                              const SizedBox(width: 8),
+                              Expanded(child: _hl(e.value.text, const TextStyle(fontSize: 14, height: 1.3, color: Colors.black87), maxLines: 2)),
+                            ])),
+                          ),
+                        )),
+                    if (unchecked.length > _kCardItemCap)
+                      Padding(padding: const EdgeInsets.only(top: 4, left: 2),
+                        child: Text('+ ${unchecked.length - _kCardItemCap} more items', style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w500))),
+                    if (doneCount > 0)
+                      Padding(padding: const EdgeInsets.only(top: 5, left: 2), child: Row(children: [
+                        const Icon(Icons.check, size: 14, color: Colors.black38),
+                        const SizedBox(width: 6),
+                        Text('$doneCount completed item${doneCount == 1 ? '' : 's'}', style: const TextStyle(fontSize: 12, color: Colors.black45)),
+                      ])),
+                  ];
+                })(),
+              ]
+              else if (n.body.isNotEmpty)
+                Padding(padding: const EdgeInsets.only(top: 2), child: _hl(n.body, const TextStyle(fontSize: 14, height: 1.35, color: Colors.black87), maxLines: _kCardBodyLines)),
+              if (n.labels.isNotEmpty || n.reminderAt != null || n.attachmentCount > 0)
+                Padding(padding: const EdgeInsets.only(top: 8), child: Wrap(spacing: 6, runSpacing: 4, children: [
+                  for (final l in n.labels) _chip(l, Icons.label_outline),
+                  if (n.attachmentCount > 0) _chip('${n.attachmentCount}', Icons.attach_file),
+                  if (n.reminderAt != null) _chip(_fmt(n.reminderAt!), Icons.notifications_none, brand: true),
+                ])),
+              Padding(padding: const EdgeInsets.only(top: 8), child: _isTrash
+                ? Row(children: [
+                    TextButton.icon(onPressed: () => _restore(n), icon: const Icon(Icons.restore, size: 16, color: Colors.green), label: const Text('Restore', style: TextStyle(color: Colors.green, fontSize: 12))),
+                    const Spacer(),
+                    TextButton.icon(onPressed: () => _deleteForever(n), icon: const Icon(Icons.delete_forever, size: 16, color: Colors.red), label: const Text('Delete', style: TextStyle(color: Colors.red, fontSize: 12))),
+                  ])
+                : Row(children: [
+                    // Padded InkWells → comfortable ~40dp tap targets on card actions.
+                    Tooltip(
+                      message: n.archived ? 'Unarchive' : 'Archive',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () => _quick(n, {'archived': !n.archived}),
+                        child: Padding(padding: const EdgeInsets.all(10), child: Icon(n.archived ? Icons.unarchive_outlined : Icons.archive_outlined, size: 18, color: Colors.black38)),
+                      ),
+                    ),
+                    Tooltip(
+                      message: 'Delete',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () => _trash(n),
+                        child: const Padding(padding: EdgeInsets.all(10), child: Icon(Icons.delete_outline, size: 18, color: Colors.black38)),
+                      ),
+                    ),
                   ])),
-              ];
-            })(),
-          ]
-          else if (n.body.isNotEmpty)
-            Padding(padding: const EdgeInsets.only(top: 2), child: _hl(n.body, const TextStyle(fontSize: 14, height: 1.35, color: Colors.black87), maxLines: _kCardBodyLines)),
-          if (n.labels.isNotEmpty || n.reminderAt != null || n.attachmentCount > 0)
-            Padding(padding: const EdgeInsets.only(top: 8), child: Wrap(spacing: 6, runSpacing: 4, children: [
-              for (final l in n.labels) _chip(l, Icons.label_outline),
-              if (n.attachmentCount > 0) _chip('${n.attachmentCount}', Icons.attach_file),
-              if (n.reminderAt != null) _chip(_fmt(n.reminderAt!), Icons.notifications_none, brand: true),
-            ])),
-          Padding(padding: const EdgeInsets.only(top: 8), child: _isTrash
-            ? Row(children: [
-                TextButton.icon(onPressed: () => _restore(n), icon: const Icon(Icons.restore, size: 16, color: Colors.green), label: const Text('Restore', style: TextStyle(color: Colors.green, fontSize: 12))),
-                const Spacer(),
-                TextButton.icon(onPressed: () => _deleteForever(n), icon: const Icon(Icons.delete_forever, size: 16, color: Colors.red), label: const Text('Delete', style: TextStyle(color: Colors.red, fontSize: 12))),
-              ])
-            : Row(children: [
-                // Padded InkWells → comfortable ~40dp tap targets on card actions.
-                InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: () => _quick(n, {'archived': !n.archived}),
-                  child: Padding(padding: const EdgeInsets.all(10), child: Icon(n.archived ? Icons.unarchive_outlined : Icons.archive_outlined, size: 18, color: Colors.black38)),
-                ),
-                InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: () => _trash(n),
-                  child: const Padding(padding: EdgeInsets.all(10), child: Icon(Icons.delete_outline, size: 18, color: Colors.black38)),
-                ),
-              ])),
-        ]),
-      ),
+            ]),
+          ),
+        ),
+        if (selected)
+          Positioned(
+            top: 8, right: 8,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: const BoxDecoration(color: kBrand, shape: BoxShape.circle),
+              child: const Icon(Icons.check, size: 16, color: Colors.white),
+            ),
+          ),
+      ]),
     );
   }
 

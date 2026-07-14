@@ -6,9 +6,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api.dart';
 import '../auth_messages.dart';
 import '../main.dart';
+import '../models.dart';
 import '../notifications.dart';
 import '../note_colors.dart';
 import 'auth_screen.dart';
+import 'notes_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -19,6 +21,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _exporting = false;
   bool _deleting = false;
+  bool _switchingWorkspace = false;
 
   Future<void> _logout() async {
     await Notifications.instance.cancelAll(); // old account's reminders must not fire
@@ -34,6 +37,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _snack(String m) {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
+
+  // BUG-011: the workspace picker only ever appeared once, right after login
+  // (auth_screen.dart's _pickCompany) — multi-workspace users had no way back
+  // into it. Reuses the same list-and-pick UI, then reloads NotesScreen fresh
+  // (like auth_screen's _goToNotes) so the note list reflects the new company.
+  Future<void> _switchWorkspace() async {
+    setState(() => _switchingWorkspace = true);
+    List<Company> companies;
+    try {
+      companies = await Api.instance.companies();
+    } catch (e) {
+      if (mounted) { setState(() => _switchingWorkspace = false); _snack(friendlyError(e)); }
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _switchingWorkspace = false);
+    if (companies.length <= 1) { _snack('You only have one workspace.'); return; }
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      builder: (_) => ListView(
+        shrinkWrap: true,
+        children: [
+          const Padding(padding: EdgeInsets.all(16),
+            child: Text('Switch workspace', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16))),
+          for (final c in companies)
+            ListTile(
+              leading: Icon(Icons.business, color: c.id == Api.instance.companyId ? kBrand : Colors.black38),
+              title: Text(c.name),
+              trailing: c.id == Api.instance.companyId ? const Icon(Icons.check, color: kBrand) : null,
+              onTap: () => Navigator.pop(context, c.id),
+            ),
+        ],
+      ),
+    );
+    if (picked == null || picked == Api.instance.companyId) return;
+    Api.instance.setCompany(picked);
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const NotesScreen()), (r) => false);
   }
 
   // GDPR/DPDP data export (auth.exportMyData) — see qa-audit/REMEDIATION_PLAN.md.
@@ -108,6 +151,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               leading: const Icon(Icons.account_circle_outlined, color: kBrand),
               title: Text(Api.instance.userName?.isNotEmpty == true ? Api.instance.userName! : 'Kuklabs account'),
               subtitle: const Text('One Kuklabs account across every Kuk app'),
+            ),
+            ListTile(
+              leading: _switchingWorkspace
+                  ? const SizedBox(width: 22, height: 22, child: Padding(padding: EdgeInsets.all(2), child: CircularProgressIndicator(strokeWidth: 2, color: kBrand)))
+                  : const Icon(Icons.business_outlined, color: kBrand),
+              title: const Text('Workspace'),
+              subtitle: const Text('Switch between your companies'),
+              onTap: _switchingWorkspace ? null : _switchWorkspace,
             ),
             const Divider(),
             const _Section('Theme'),
