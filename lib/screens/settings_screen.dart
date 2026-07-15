@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../api.dart';
 import '../auth_messages.dart';
+import '../l10n/strings.dart';
 import '../main.dart';
 import '../models.dart';
 import '../notifications.dart';
@@ -34,6 +35,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _open(String url) async {
     try { await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication); } catch (_) {}
   }
+
+  // Language picker (multi-language support). Persists via LocaleController;
+  // MaterialApp is wrapped in a listener on it, so the whole app re-renders.
+  Future<void> _pickLanguage() async {
+    final current = LocaleController.locale.value.languageCode;
+    final code = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Text(tr('language'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            ),
+            for (final l in kSupportedLangs)
+              ListTile(
+                title: Text(l.native),
+                subtitle: Text(l.english),
+                trailing: l.code == current ? const Icon(Icons.check, color: kBrand) : null,
+                onTap: () => Navigator.pop(context, l.code),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (code != null) {
+      await LocaleController.set(code);
+      if (mounted) setState(() {});
+    }
+  }
+
+  String get _currentLangNative => kSupportedLangs
+      .firstWhere((l) => l.code == LocaleController.locale.value.languageCode,
+          orElse: () => kSupportedLangs.first)
+      .native;
 
   void _snack(String m) {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
@@ -141,7 +179,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings'), backgroundColor: kBrand, foregroundColor: Colors.white),
+      appBar: AppBar(title: Text(tr('settings')), backgroundColor: kBrand, foregroundColor: Colors.white),
       body: ValueListenableBuilder<ThemeMode>(
         valueListenable: themeNotifier,
         builder: (_, mode, __) => ListView(
@@ -156,21 +194,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
               leading: _switchingWorkspace
                   ? const SizedBox(width: 22, height: 22, child: Padding(padding: EdgeInsets.all(2), child: CircularProgressIndicator(strokeWidth: 2, color: kBrand)))
                   : const Icon(Icons.business_outlined, color: kBrand),
-              title: const Text('Workspace'),
-              subtitle: const Text('Switch between your companies'),
+              title: Text(tr('workspace')),
+              subtitle: Text(tr('workspace_sub')),
               onTap: _switchingWorkspace ? null : _switchWorkspace,
+            ),
+            ListTile(
+              leading: const Icon(Icons.language, color: kBrand),
+              title: Text(tr('language')),
+              subtitle: Text(tr('language_sub')),
+              trailing: Text(_currentLangNative, style: const TextStyle(color: Colors.black54)),
+              onTap: _pickLanguage,
             ),
             const Divider(),
             const _Section('Theme'),
             RadioListTile<ThemeMode>(
               value: ThemeMode.system, groupValue: mode, activeColor: kBrand,
-              title: const Text('System default'), onChanged: (m) => setThemeMode(m!)),
+              title: Text(tr('system_default')), onChanged: (m) => setThemeMode(m!)),
             RadioListTile<ThemeMode>(
               value: ThemeMode.light, groupValue: mode, activeColor: kBrand,
-              title: const Text('Light'), onChanged: (m) => setThemeMode(m!)),
+              title: Text(tr('light')), onChanged: (m) => setThemeMode(m!)),
             RadioListTile<ThemeMode>(
               value: ThemeMode.dark, groupValue: mode, activeColor: kBrand,
-              title: const Text('Dark'), onChanged: (m) => setThemeMode(m!)),
+              title: Text(tr('dark')), onChanged: (m) => setThemeMode(m!)),
             const Divider(),
             const _Section('Privacy & Trust'),
             const Padding(
@@ -188,18 +233,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               leading: _exporting
                   ? const SizedBox(width: 22, height: 22, child: Padding(padding: EdgeInsets.all(2), child: CircularProgressIndicator(strokeWidth: 2, color: kBrand)))
                   : const Icon(Icons.download_outlined, color: kBrand),
-              title: const Text('Export my data'),
-              subtitle: const Text('Download your Kuklabs account data'),
+              title: Text(tr('export_data')),
+              subtitle: Text(tr('export_data_sub')),
               onTap: _exporting ? null : _exportData,
             ),
             ListTile(
               leading: const Icon(Icons.description_outlined, color: kBrand),
-              title: const Text('Terms of Use'),
+              title: Text(tr('terms')),
               onTap: () => _open('https://kuklabs.com/terms'),
             ),
             ListTile(
               leading: const Icon(Icons.privacy_tip_outlined, color: kBrand),
-              title: const Text('Privacy Policy'),
+              title: Text(tr('privacy_policy')),
               onTap: () => _open('https://kuklabs.com/privacy'),
             ),
             const Divider(),
@@ -209,16 +254,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: Text(kProductName),
               subtitle: Text('Notes, lists & reminders • $kWebsite'),
             ),
-            const ListTile(
-              leading: Icon(Icons.verified_outlined),
-              title: Text('Version'),
+            ListTile(
+              leading: const Icon(Icons.verified_outlined),
+              title: Text(tr('version')),
               // KUKLABS_BRAND_CONFIG.json versionDisplayFormat: "Version {version} (Build {build})"
-              subtitle: Text('Version $kAppVersion (Build $kAppBuild)'),
+              subtitle: const Text('Version $kAppVersion (Build $kAppBuild)'),
             ),
             const SizedBox(height: 8),
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text('Log out', style: TextStyle(color: Colors.red)),
+              title: Text(tr('log_out'), style: const TextStyle(color: Colors.red)),
               onTap: _logout,
             ),
             const Divider(),
@@ -227,8 +272,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               leading: _deleting
                   ? const SizedBox(width: 22, height: 22, child: Padding(padding: EdgeInsets.all(2), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red)))
                   : const Icon(Icons.delete_forever, color: Colors.red),
-              title: const Text('Delete account', style: TextStyle(color: Colors.red)),
-              subtitle: const Text('Permanently delete your Kuklabs account'),
+              title: Text(tr('delete_account'), style: const TextStyle(color: Colors.red)),
+              subtitle: Text(tr('delete_account_sub')),
               onTap: _deleting ? null : _deleteAccount,
             ),
             const SizedBox(height: 16),

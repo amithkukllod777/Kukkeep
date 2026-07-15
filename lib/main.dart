@@ -4,9 +4,11 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
 import 'google_auth.dart';
+import 'l10n/strings.dart';
 import 'note_colors.dart';
 import 'notifications.dart';
 import 'push.dart';
@@ -59,6 +61,7 @@ void main() {
   runZonedGuarded(() async {
     await Api.instance.load();
     await loadTheme();
+    await LocaleController.load();
     runApp(const KukKeepApp());
     // Notifications + Firebase push are optional and must NEVER block the first
     // frame — init them after the UI is up (a hang/failure here must not blank the
@@ -76,12 +79,23 @@ class KukKeepApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeNotifier,
-      builder: (_, mode, __) => MaterialApp(
+      builder: (_, mode, __) => ValueListenableBuilder<Locale>(
+        valueListenable: LocaleController.locale,
+        builder: (_, locale, __) => MaterialApp(
         title: 'KukKeep',
         debugShowCheckedModeBanner: false,
         navigatorKey: GoogleAuth.navigatorKey,
         scaffoldMessengerKey: GoogleAuth.messengerKey,
         themeMode: mode,
+        // Localization: user-selected language (Settings → Language), with
+        // GlobalMaterialLocalizations providing built-in widget/date/RTL support.
+        locale: locale,
+        supportedLocales: kSupportedLocales,
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
         // Inter is the shared KukLabs primary font (§5.1); it falls back to the
         // platform sans when the family isn't bundled.
         theme: ThemeData(
@@ -114,6 +128,7 @@ class KukKeepApp extends StatelessWidget {
           snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
         ),
         home: Api.instance.isLoggedIn ? const NotesScreen() : const AuthScreen(),
+      ),
       ),
     );
   }
