@@ -1,13 +1,15 @@
 name: kukkeep
 description: KukKeep — native notes, checklists & reminders (Flutter). Connects to your KukLabs account.
 publish_to: 'none'
-version: 2.3.1+37
+version: 2.4.0+38
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
 
 dependencies:
   flutter:
+    sdk: flutter
+  flutter_localizations:        # Material/Cupertino localizations + RTL (i18n)
     sdk: flutter
   cupertino_icons: ^1.0.8
   http: ^1.2.2                 # talks to the KukLabs cloud (tRPC over HTTP)

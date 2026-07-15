@@ -4,8 +4,10 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api.dart';
 import '../auth_messages.dart';
+import '../l10n/strings.dart';
 import '../models.dart';
 import '../note_colors.dart';
+import '../note_templates.dart';
 import '../notifications.dart';
 import 'auth_screen.dart';
 import 'note_editor_screen.dart';
@@ -163,6 +165,17 @@ class _NotesScreenState extends State<NotesScreen> {
     if (_selecting && note != null) { _toggleSelect(note.id); return; }
     final changed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => NoteEditorScreen(note: note)));
+    if (changed == true) _load();
+  }
+
+  // New note via the "+" button: offer a starter template first, then open the
+  // editor seeded with the choice (blank template = an empty note).
+  Future<void> _newNote() async {
+    final nav = Navigator.of(context);
+    final t = await showTemplatePicker(context);
+    if (t == null || !mounted) return;
+    final changed = await nav.push<bool>(
+      MaterialPageRoute(builder: (_) => NoteEditorScreen(template: t)));
     if (changed == true) _load();
   }
 
@@ -382,7 +395,7 @@ class _NotesScreenState extends State<NotesScreen> {
                 controller: _searchCtrl,
                 onChanged: (v) => setState(() => _search = v),
                 decoration: InputDecoration(
-                  hintText: 'Search your notes',
+                  hintText: tr('search_notes'),
                   prefixIcon: const Icon(Icons.search, size: 20),
                   suffixIcon: _search.isEmpty ? null : IconButton(
                     tooltip: 'Clear search',
@@ -401,9 +414,9 @@ class _NotesScreenState extends State<NotesScreen> {
       floatingActionButton: (_isTrash || _isArchive) ? null : FloatingActionButton.extended(
         backgroundColor: kBrand,
         foregroundColor: Colors.white,
-        onPressed: () => _openEditor(),
+        onPressed: _newNote,
         icon: const Icon(Icons.add),
-        label: const Text('Note'),
+        label: Text(tr('notes')),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: kBrand))
