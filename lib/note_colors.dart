@@ -56,8 +56,8 @@ const String kPrivacyUrl = 'https://kuklabs.com/privacy';
 const String kSupportUrl = 'https://kuklabs.com/support';
 // App version shown in Settings → About as "Version x.y.z (Build n)"
 // (KUKLABS_MASTER_STANDARD.md §12.2). Keep in sync with pubspec `version`.
-const String kAppVersion = '2.4.0';
-const int kAppBuild = 38;
+const String kAppVersion = '2.4.1';
+const int kAppBuild = 39;
 
 // Display headings share the primary sans family (no serif in product UI).
 const String kDisplayFont = kFont;
