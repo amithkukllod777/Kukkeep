@@ -30,7 +30,7 @@ dependencies:
   url_launcher: ^6.3.0                  # opens the Google sign-in page in the browser
   app_links: ^6.3.2                     # receives the kukkeep://auth deep link back
   cached_network_image: ^3.4.1          # disk-caches cover/attachment images (qa-audit BUG-008)
-  app_settings: ^5.1.1                   # jump to system notification / battery-optimization settings
+  app_settings: ^8.0.3                   # jump to system notification / battery-optimization settings (8.x targets compileSdk 34+)
 
 dev_dependencies:
   flutter_test:
