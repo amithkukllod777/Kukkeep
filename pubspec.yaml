@@ -1,7 +1,7 @@
 name: kukkeep
 description: KukKeep — native notes, checklists & reminders (Flutter). Connects to your KukLabs account.
 publish_to: 'none'
-version: 2.5.0+40
+version: 2.5.1+41
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -30,6 +30,7 @@ dependencies:
   url_launcher: ^6.3.0                  # opens the Google sign-in page in the browser
   app_links: ^6.3.2                     # receives the kukkeep://auth deep link back
   cached_network_image: ^3.4.1          # disk-caches cover/attachment images (qa-audit BUG-008)
+  app_settings: ^5.1.1                   # jump to system notification / battery-optimization settings
 
 dev_dependencies:
   flutter_test:

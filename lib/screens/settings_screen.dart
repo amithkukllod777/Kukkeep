@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:app_settings/app_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -33,6 +34,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _open(String url) async {
     try { await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication); } catch (_) {}
+  }
+
+  // Fires a reminder ~5s out through the real scheduling path so the user can
+  // confirm reminders reach them; also (re)requests the needed permissions.
+  Future<void> _testReminder() async {
+    await Notifications.instance.requestPermissions();
+    await Notifications.instance.scheduleTest();
+    _snack(tr('test_reminder_sent'));
   }
 
   // Language picker (multi-language support). Persists via LocaleController;
@@ -194,8 +203,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
               activeColor: kBrand,
               onChanged: (v) async {
                 await Notifications.instance.setRemindersEnabled(v);
+                if (v) await Notifications.instance.requestPermissions();
                 if (mounted) setState(() {});
               },
+            ),
+            SwitchListTile(
+              secondary: const Icon(Icons.volume_up_outlined, color: kBrand),
+              title: Text(tr('notification_sound')),
+              value: Notifications.instance.soundEnabled,
+              activeColor: kBrand,
+              onChanged: (v) async {
+                await Notifications.instance.setSoundEnabled(v);
+                if (mounted) setState(() {});
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.music_note_outlined, color: kBrand),
+              title: Text(tr('sound_settings')),
+              onTap: () async => AppSettings.openAppSettings(type: AppSettingsType.notification),
+            ),
+            ListTile(
+              leading: const Icon(Icons.send_outlined, color: kBrand),
+              title: Text(tr('test_reminder')),
+              onTap: _testReminder,
+            ),
+            ListTile(
+              leading: const Icon(Icons.battery_alert_outlined, color: kBrand),
+              title: Text(tr('fix_reminders')),
+              onTap: () async => AppSettings.openAppSettings(type: AppSettingsType.batteryOptimization),
             ),
             const Divider(),
             const _Section('Privacy & Trust'),

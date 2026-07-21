@@ -7,6 +7,15 @@ import 'package:timezone/data/latest_all.dart' as tzdata;
 /// note's reminder time using exact alarms (falling back to inexact if the
 /// exact-alarm permission is denied), against the absolute instant so the time
 /// is correct regardless of the device timezone.
+///
+/// Delivery notes (why a reminder might not fire, and what this does about it):
+///  - The channel is created **explicitly** with max importance + sound. A new
+///    channel id (`_v2`) is used so devices that already had the old channel
+///    (possibly created with the wrong importance/sound and then cached by
+///    Android, which ignores later code changes) get a correctly-configured one.
+///  - Notification + exact-alarm permissions are (re)requested on demand.
+///  - On aggressive OEMs (Samsung/Xiaomi/etc.) the app must also be exempt from
+///    battery optimization — Settings exposes a shortcut to that system screen.
 class Notifications {
   Notifications._();
   static final Notifications instance = Notifications._();
@@ -14,17 +23,25 @@ class Notifications {
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   bool _ready = false;
 
-  // User preference (Settings → Notifications). When off, no reminder is
-  // scheduled. Persisted; loaded at startup and updated from Settings.
+  // Fresh channel ids (the original 'kukkeep_reminders' may be cached on-device
+  // with stale config; a new id forces Android to create it correctly).
+  static const String _channelSound = 'kukkeep_reminders_v2';
+  static const String _channelSilent = 'kukkeep_reminders_silent_v2';
+
+  // ── User preferences (Settings → Notifications) ──
   static const _kRemindersKey = 'kk_reminders_enabled';
+  static const _kSoundKey = 'kk_reminders_sound';
   bool _remindersEnabled = true;
+  bool _soundEnabled = true;
   bool get remindersEnabled => _remindersEnabled;
+  bool get soundEnabled => _soundEnabled;
 
   Future<void> loadPrefs() async {
     try {
       final p = await SharedPreferences.getInstance();
       _remindersEnabled = p.getBool(_kRemindersKey) ?? true;
-    } catch (_) {/* default on */}
+      _soundEnabled = p.getBool(_kSoundKey) ?? true;
+    } catch (_) {/* defaults on */}
   }
 
   Future<void> setRemindersEnabled(bool on) async {
@@ -36,13 +53,24 @@ class Notifications {
     if (!on) await cancelAll(); // drop any already-armed reminders
   }
 
-  static const AndroidNotificationDetails _androidDetails = AndroidNotificationDetails(
-    'kukkeep_reminders',
-    'Reminders',
-    channelDescription: 'KukKeep note reminders',
-    importance: Importance.max,
-    priority: Priority.high,
-  );
+  Future<void> setSoundEnabled(bool on) async {
+    _soundEnabled = on;
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setBool(_kSoundKey, on);
+    } catch (_) {}
+  }
+
+  AndroidNotificationDetails get _androidDetails => AndroidNotificationDetails(
+        _soundEnabled ? _channelSound : _channelSilent,
+        _soundEnabled ? 'Reminders' : 'Reminders (silent)',
+        channelDescription: 'KukKeep note reminders',
+        importance: Importance.max,
+        priority: Priority.high,
+        playSound: _soundEnabled,
+        enableVibration: true,
+        category: AndroidNotificationCategory.reminder,
+      );
 
   Future<void> init() async {
     if (_ready) return;
@@ -51,6 +79,22 @@ class Notifications {
       const android = AndroidInitializationSettings('@mipmap/ic_launcher');
       await _plugin.initialize(const InitializationSettings(android: android));
       final androidImpl = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      // Create both channels up front with the correct config (importance +
+      // sound), so a reminder always pops as a heads-up with sound.
+      await androidImpl?.createNotificationChannel(const AndroidNotificationChannel(
+        _channelSound, 'Reminders',
+        description: 'KukKeep note reminders',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+      ));
+      await androidImpl?.createNotificationChannel(const AndroidNotificationChannel(
+        _channelSilent, 'Reminders (silent)',
+        description: 'KukKeep note reminders without sound',
+        importance: Importance.high,
+        playSound: false,
+        enableVibration: true,
+      ));
       // Android 13+ runtime notification permission + exact-alarm permission
       // (so reminders fire ON TIME even when the device is idle/locked).
       await androidImpl?.requestNotificationsPermission();
@@ -61,34 +105,66 @@ class Notifications {
     }
   }
 
-  /// Schedule (or reschedule) a reminder for a note. No-op if the time is in the
-  /// past. The note id doubles as the notification id so it can be cancelled.
-  Future<void> schedule({required int noteId, required String title, required String body, required DateTime when}) async {
-    if (!_remindersEnabled) return; // user turned reminders off (Settings)
+  /// (Re)request notification + exact-alarm permissions. Safe to call anytime
+  /// (e.g. from Settings when the user is fixing reminders).
+  Future<void> requestPermissions() async {
+    if (!_ready) await init();
+    try {
+      final a = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      await a?.requestNotificationsPermission();
+      await a?.requestExactAlarmsPermission();
+    } catch (_) {}
+  }
+
+  // Shared scheduling core. Ignores the user's on/off pref so it can also power
+  // the "send test reminder" diagnostic.
+  Future<void> _scheduleAt(int id, String title, String body, DateTime when) async {
     if (!_ready) await init();
     if (!_ready) return;
+    await _plugin.cancel(id);
+    if (when.isBefore(DateTime.now())) return;
+    // TZDateTime.from preserves the absolute instant → correct real-world time.
+    final scheduled = tz.TZDateTime.from(when, tz.UTC);
+    final details = NotificationDetails(android: _androidDetails);
+    Future<void> go(AndroidScheduleMode mode) => _plugin.zonedSchedule(
+          id,
+          title.isEmpty ? 'Kuk Keep reminder' : title,
+          body,
+          scheduled,
+          details,
+          androidScheduleMode: mode,
+          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        );
     try {
-      await _plugin.cancel(noteId);
-      if (when.isBefore(DateTime.now())) return;
-      // TZDateTime.from preserves the absolute instant → correct real-world time.
-      final scheduled = tz.TZDateTime.from(when, tz.UTC);
-      Future<void> doSchedule(AndroidScheduleMode mode) => _plugin.zonedSchedule(
-        noteId,
-        title.isEmpty ? 'Kuk Keep reminder' : title,
-        body,
-        scheduled,
-        const NotificationDetails(android: _androidDetails),
-        androidScheduleMode: mode,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-      );
+      await go(AndroidScheduleMode.exactAllowWhileIdle); // on time, even in Doze
+    } catch (_) {
+      // Exact-alarm permission denied — an approximate reminder still beats none.
       try {
-        await doSchedule(AndroidScheduleMode.exactAllowWhileIdle); // on time, even in Doze
-      } catch (_) {
-        // Exact-alarm permission denied (Android 12/12L can revoke it) —
-        // an approximate reminder still beats no reminder at all.
-        await doSchedule(AndroidScheduleMode.inexactAllowWhileIdle);
-      }
+        await go(AndroidScheduleMode.inexactAllowWhileIdle);
+      } catch (_) {}
+    }
+  }
+
+  /// Schedule (or reschedule) a reminder for a note. No-op if reminders are off
+  /// or the time is in the past. The note id doubles as the notification id.
+  Future<void> schedule({required int noteId, required String title, required String body, required DateTime when}) async {
+    if (!_remindersEnabled) return; // user turned reminders off (Settings)
+    try {
+      await _scheduleAt(noteId, title, body, when);
     } catch (_) {/* ignore scheduling errors */}
+  }
+
+  /// Fires a reminder ~5 seconds from now through the real scheduling path, so
+  /// the user can confirm reminders actually reach them (Settings → test).
+  Future<void> scheduleTest() async {
+    try {
+      await _scheduleAt(
+        2147483646, // a fixed, out-of-range-for-notes id
+        'Kuk Keep',
+        'Test reminder — reminders are working \u{1F514}',
+        DateTime.now().add(const Duration(seconds: 5)),
+      );
+    } catch (_) {}
   }
 
   // Drop every scheduled reminder — used on logout so the next user of the
@@ -112,7 +188,7 @@ class Notifications {
         DateTime.now().millisecondsSinceEpoch ~/ 1000,
         title.isEmpty ? 'Kuk Keep' : title,
         body,
-        const NotificationDetails(android: _androidDetails),
+        NotificationDetails(android: _androidDetails),
       );
     } catch (_) {}
   }
