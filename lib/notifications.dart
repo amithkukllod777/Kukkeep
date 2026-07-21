@@ -74,46 +74,81 @@ class Notifications {
 
   Future<void> init() async {
     if (_ready) return;
+    try { tzdata.initializeTimeZones(); } catch (_) {}
     try {
-      tzdata.initializeTimeZones();
       const android = AndroidInitializationSettings('@mipmap/ic_launcher');
       await _plugin.initialize(const InitializationSettings(android: android));
-      final androidImpl = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-      // Create both channels up front with the correct config (importance +
-      // sound), so a reminder always pops as a heads-up with sound.
-      await androidImpl?.createNotificationChannel(const AndroidNotificationChannel(
+    } catch (_) {
+      return; // core plugin init failed — retry on the next call
+    }
+    // CRITICAL: mark ready as soon as the plugin core is up. Everything below
+    // is best-effort — a throwing permission/channel call must NOT leave the
+    // whole notification system disabled (that was why nothing fired at all).
+    _ready = true;
+    final a = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    // Create both channels up front with the correct config (importance + sound).
+    try {
+      await a?.createNotificationChannel(const AndroidNotificationChannel(
         _channelSound, 'Reminders',
         description: 'KukKeep note reminders',
-        importance: Importance.max,
-        playSound: true,
-        enableVibration: true,
+        importance: Importance.max, playSound: true, enableVibration: true,
       ));
-      await androidImpl?.createNotificationChannel(const AndroidNotificationChannel(
+    } catch (_) {}
+    try {
+      await a?.createNotificationChannel(const AndroidNotificationChannel(
         _channelSilent, 'Reminders (silent)',
         description: 'KukKeep note reminders without sound',
-        importance: Importance.high,
-        playSound: false,
-        enableVibration: true,
+        importance: Importance.high, playSound: false, enableVibration: true,
       ));
-      // Android 13+ runtime notification permission + exact-alarm permission
-      // (so reminders fire ON TIME even when the device is idle/locked).
-      await androidImpl?.requestNotificationsPermission();
-      await androidImpl?.requestExactAlarmsPermission();
-      _ready = true;
-    } catch (_) {
-      // Never let notification setup crash the app.
-    }
+    } catch (_) {}
+    // Android 13+ runtime notification permission + exact-alarm permission,
+    // each independently guarded.
+    try { await a?.requestNotificationsPermission(); } catch (_) {}
+    try { await a?.requestExactAlarmsPermission(); } catch (_) {}
   }
 
   /// (Re)request notification + exact-alarm permissions. Safe to call anytime
   /// (e.g. from Settings when the user is fixing reminders).
   Future<void> requestPermissions() async {
     if (!_ready) await init();
+    final a = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    try { await a?.requestNotificationsPermission(); } catch (_) {}
+    try { await a?.requestExactAlarmsPermission(); } catch (_) {}
+  }
+
+  /// Whether the OS currently lets this app post notifications. When false,
+  /// nothing we do will show — the user must enable them in system settings.
+  Future<bool> areEnabled() async {
+    if (!_ready) await init();
     try {
       final a = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-      await a?.requestNotificationsPermission();
-      await a?.requestExactAlarmsPermission();
-    } catch (_) {}
+      return (await a?.areNotificationsEnabled()) ?? true;
+    } catch (_) {
+      return true; // unknown — don't block the happy path
+    }
+  }
+
+  /// Immediate diagnostic notification (NOT scheduled — bypasses the alarm
+  /// subsystem entirely). Returns false if the OS is blocking notifications, so
+  /// the caller can send the user to system settings to enable them.
+  Future<bool> sendTestNow() async {
+    if (!_ready) await init();
+    if (!_ready) return false;
+    try {
+      final a = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      try { await a?.requestNotificationsPermission(); } catch (_) {}
+      final enabled = (await a?.areNotificationsEnabled()) ?? true;
+      if (!enabled) return false;
+      await _plugin.show(
+        2147483645,
+        'Kuk Keep',
+        'Test notification — reminders are working \u{1F514}',
+        NotificationDetails(android: _androidDetails),
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   // Shared scheduling core. Ignores the user's on/off pref so it can also power

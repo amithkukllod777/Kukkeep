@@ -39,9 +39,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Fires a reminder ~5s out through the real scheduling path so the user can
   // confirm reminders reach them; also (re)requests the needed permissions.
   Future<void> _testReminder() async {
-    await Notifications.instance.requestPermissions();
-    await Notifications.instance.scheduleTest();
-    _snack(tr('test_reminder_sent'));
+    // Immediate show (not scheduled) — proves the app can post a notification
+    // at all, independent of the alarm subsystem.
+    final ok = await Notifications.instance.sendTestNow();
+    if (!mounted) return;
+    if (ok) {
+      _snack(tr('test_reminder_sent'));
+    } else {
+      // The OS is blocking notifications — take the user to the system screen.
+      _snack(tr('notifications_blocked'));
+      await AppSettings.openAppSettings(type: AppSettingsType.notification);
+    }
   }
 
   // Language picker (multi-language support). Persists via LocaleController;
