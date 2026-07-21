@@ -71,8 +71,10 @@ String tr(String key) {
   final code = LocaleController.locale.value.languageCode;
   return _t[code]?[key] ??
       _extra[code]?[key] ??
+      _notif[code]?[key] ??
       _t['en']?[key] ??
       _extra['en']?[key] ??
+      _notif['en']?[key] ??
       key;
 }
 
@@ -540,4 +542,20 @@ const Map<String, Map<String, String>> _extra = {
     'save': 'Simpan', 'discard': 'Buang', 'discard_changes': 'Buang perubahan?', 'keep_editing': 'Lanjut mengedit',
     'verify': 'Verifikasi', 'resend_code': 'Kirim ulang kode',
   },
+};
+
+// Notification / reminder-diagnostics strings (Settings → Notifications).
+const Map<String, Map<String, String>> _notif = {
+  'en': {'notification_sound': 'Notification sound', 'sound_settings': 'Sound & tone', 'test_reminder': 'Send a test notification', 'test_reminder_sent': 'Sent — one now, one in ~10s (with sound)', 'fix_reminders': 'Reminders not arriving?', 'notifications_blocked': 'Notifications are off — turn them on for Kuk Keep'},
+  'hi': {'notification_sound': 'नोटिफ़िकेशन ध्वनि', 'sound_settings': 'ध्वनि और टोन', 'test_reminder': 'टेस्ट नोटिफ़िकेशन भेजें', 'test_reminder_sent': 'भेजा — एक अभी, एक ~10 सेकंड में (ध्वनि के साथ)', 'fix_reminders': 'रिमाइंडर नहीं आ रहे?', 'notifications_blocked': 'नोटिफ़िकेशन बंद हैं — Kuk Keep के लिए चालू करें'},
+  'bn': {'notification_sound': 'বিজ্ঞপ্তির শব্দ', 'sound_settings': 'শব্দ ও টোন', 'test_reminder': 'টেস্ট রিমাইন্ডার পাঠান', 'test_reminder_sent': '~৫ সেকেন্ডে টেস্ট রিমাইন্ডার', 'fix_reminders': 'রিমাইন্ডার আসছে না?'},
+  'es': {'notification_sound': 'Sonido de notificación', 'sound_settings': 'Sonido y tono', 'test_reminder': 'Enviar recordatorio de prueba', 'test_reminder_sent': 'Recordatorio de prueba en ~5 s', 'fix_reminders': '¿No llegan los recordatorios?'},
+  'pt': {'notification_sound': 'Som da notificação', 'sound_settings': 'Som e tom', 'test_reminder': 'Enviar lembrete de teste', 'test_reminder_sent': 'Lembrete de teste em ~5 s', 'fix_reminders': 'Lembretes não chegam?'},
+  'fr': {'notification_sound': 'Son de notification', 'sound_settings': 'Son et tonalité', 'test_reminder': 'Envoyer un rappel test', 'test_reminder_sent': 'Rappel test dans ~5 s', 'fix_reminders': 'Rappels non reçus ?'},
+  'de': {'notification_sound': 'Benachrichtigungston', 'sound_settings': 'Ton & Klang', 'test_reminder': 'Test-Erinnerung senden', 'test_reminder_sent': 'Test-Erinnerung in ~5 s', 'fix_reminders': 'Erinnerungen kommen nicht an?'},
+  'ru': {'notification_sound': 'Звук уведомления', 'sound_settings': 'Звук и сигнал', 'test_reminder': 'Отправить тест-напоминание', 'test_reminder_sent': 'Тест-напоминание через ~5 с', 'fix_reminders': 'Напоминания не приходят?'},
+  'ar': {'notification_sound': 'صوت الإشعار', 'sound_settings': 'الصوت والنغمة', 'test_reminder': 'إرسال تذكير تجريبي', 'test_reminder_sent': 'تذكير تجريبي خلال ~5 ثوانٍ', 'fix_reminders': 'التذكيرات لا تصل؟'},
+  'zh': {'notification_sound': '通知声音', 'sound_settings': '声音与铃声', 'test_reminder': '发送测试提醒', 'test_reminder_sent': '约5秒后发送测试提醒', 'fix_reminders': '提醒收不到？'},
+  'ja': {'notification_sound': '通知音', 'sound_settings': 'サウンドと音', 'test_reminder': 'テスト通知を送信', 'test_reminder_sent': '約5秒後にテスト通知', 'fix_reminders': '通知が届かない？'},
+  'id': {'notification_sound': 'Suara notifikasi', 'sound_settings': 'Suara & nada', 'test_reminder': 'Kirim pengingat uji', 'test_reminder_sent': 'Pengingat uji dalam ~5 dtk', 'fix_reminders': 'Pengingat tidak muncul?'},
 };
