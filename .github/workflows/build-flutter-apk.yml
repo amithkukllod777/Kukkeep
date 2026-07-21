@@ -111,7 +111,7 @@ jobs:
 
       - name: Set app display name to "KukKeep"
         run: |
-          sed -i 's/android:label="[^"]*"/android:label="KukKeep"/' android/app/src/main/AndroidManifest.xml
+          sed -i 's/android:label="[^"]*"/android:label="Kuk Keep"/' android/app/src/main/AndroidManifest.xml
 
       - name: Add permissions (network, notifications, exact alarms, boot)
         run: |

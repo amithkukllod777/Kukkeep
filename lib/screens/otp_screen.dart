@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../api.dart';
 import '../auth_messages.dart';
+import '../l10n/strings.dart';
 import '../note_colors.dart';
 import 'notes_screen.dart';
 
@@ -116,13 +117,13 @@ class _OtpScreenState extends State<OtpScreen> {
                   style: FilledButton.styleFrom(backgroundColor: kBrand, padding: const EdgeInsets.symmetric(vertical: 14)),
                   child: _loading
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Verify & continue'),
+                      : Text(tr('verify')),
                 ),
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: (_loading || _cooldown > 0) ? null : _resend,
                   child: Text(
-                    _cooldown > 0 ? 'Resend code in ${_cooldown}s' : 'Resend code',
+                    _cooldown > 0 ? '${tr('resend_code')} (${_cooldown}s)' : tr('resend_code'),
                     style: TextStyle(color: _cooldown > 0 ? Colors.grey : kBrandDark),
                   ),
                 ),

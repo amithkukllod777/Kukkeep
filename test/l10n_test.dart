@@ -16,6 +16,14 @@ void main() {
       expect(tr('__missing_key__'), '__missing_key__');
     });
 
+    test('tr resolves keys from the secondary (_extra) table too', () {
+      expect(tr('notifications'), 'Notifications');
+      expect(tr('reminders'), 'Reminders');
+      expect(tr('save'), 'Save');
+      expect(tr('verify'), 'Verify');
+      expect(tr('manage_account'), 'Manage account');
+    });
+
     test('a broad set of languages is offered', () {
       expect(kSupportedLangs.length, greaterThanOrEqualTo(10));
       expect(kSupportedLangs.first.code, 'en');

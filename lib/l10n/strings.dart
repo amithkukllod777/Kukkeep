@@ -69,7 +69,11 @@ class LocaleController {
 /// Translate [key] into the current language (English/​key fallback).
 String tr(String key) {
   final code = LocaleController.locale.value.languageCode;
-  return _t[code]?[key] ?? _t['en']?[key] ?? key;
+  return _t[code]?[key] ??
+      _extra[code]?[key] ??
+      _t['en']?[key] ??
+      _extra['en']?[key] ??
+      key;
 }
 
 // ── Translation table ────────────────────────────────────────────────────────
@@ -446,5 +450,94 @@ const Map<String, Map<String, String>> _t = {
     'cancel': 'Batal',
     'close': 'Tutup',
     'copy': 'Salin',
+  },
+};
+
+// Additional keys (Settings sections, notifications, editor, OTP). Kept in a
+// second table so it can grow without touching the block above.
+const Map<String, Map<String, String>> _extra = {
+  'en': {
+    'account': 'Account', 'notifications': 'Notifications', 'data_privacy': 'Data & Privacy', 'about': 'About',
+    'reminders': 'Reminders', 'reminders_sub': 'Show reminder notifications',
+    'manage_account': 'Manage account', 'manage_account_sub': 'Manage or delete your account on the web',
+    'save': 'Save', 'discard': 'Discard', 'discard_changes': 'Discard changes?', 'keep_editing': 'Keep editing',
+    'verify': 'Verify', 'resend_code': 'Resend code',
+  },
+  'hi': {
+    'account': 'खाता', 'notifications': 'सूचनाएं', 'data_privacy': 'डेटा और गोपनीयता', 'about': 'परिचय',
+    'reminders': 'रिमाइंडर', 'reminders_sub': 'रिमाइंडर सूचनाएं दिखाएं',
+    'manage_account': 'खाता प्रबंधित करें', 'manage_account_sub': 'वेब पर अपना खाता प्रबंधित या हटाएं',
+    'save': 'सहेजें', 'discard': 'छोड़ें', 'discard_changes': 'बदलाव छोड़ें?', 'keep_editing': 'संपादन जारी रखें',
+    'verify': 'सत्यापित करें', 'resend_code': 'कोड फिर भेजें',
+  },
+  'bn': {
+    'account': 'অ্যাকাউন্ট', 'notifications': 'বিজ্ঞপ্তি', 'data_privacy': 'ডেটা ও গোপনীয়তা', 'about': 'সম্পর্কে',
+    'reminders': 'রিমাইন্ডার', 'reminders_sub': 'রিমাইন্ডার বিজ্ঞপ্তি দেখান',
+    'manage_account': 'অ্যাকাউন্ট পরিচালনা', 'manage_account_sub': 'ওয়েবে আপনার অ্যাকাউন্ট পরিচালনা বা মুছুন',
+    'save': 'সংরক্ষণ', 'discard': 'বাতিল', 'discard_changes': 'পরিবর্তন বাতিল করবেন?', 'keep_editing': 'সম্পাদনা চালিয়ে যান',
+    'verify': 'যাচাই করুন', 'resend_code': 'কোড আবার পাঠান',
+  },
+  'es': {
+    'account': 'Cuenta', 'notifications': 'Notificaciones', 'data_privacy': 'Datos y privacidad', 'about': 'Acerca de',
+    'reminders': 'Recordatorios', 'reminders_sub': 'Mostrar notificaciones de recordatorio',
+    'manage_account': 'Gestionar cuenta', 'manage_account_sub': 'Gestiona o elimina tu cuenta en la web',
+    'save': 'Guardar', 'discard': 'Descartar', 'discard_changes': '¿Descartar cambios?', 'keep_editing': 'Seguir editando',
+    'verify': 'Verificar', 'resend_code': 'Reenviar código',
+  },
+  'pt': {
+    'account': 'Conta', 'notifications': 'Notificações', 'data_privacy': 'Dados e privacidade', 'about': 'Sobre',
+    'reminders': 'Lembretes', 'reminders_sub': 'Mostrar notificações de lembrete',
+    'manage_account': 'Gerenciar conta', 'manage_account_sub': 'Gerencie ou exclua sua conta na web',
+    'save': 'Salvar', 'discard': 'Descartar', 'discard_changes': 'Descartar alterações?', 'keep_editing': 'Continuar editando',
+    'verify': 'Verificar', 'resend_code': 'Reenviar código',
+  },
+  'fr': {
+    'account': 'Compte', 'notifications': 'Notifications', 'data_privacy': 'Données et confidentialité', 'about': 'À propos',
+    'reminders': 'Rappels', 'reminders_sub': 'Afficher les notifications de rappel',
+    'manage_account': 'Gérer le compte', 'manage_account_sub': 'Gérez ou supprimez votre compte sur le web',
+    'save': 'Enregistrer', 'discard': 'Abandonner', 'discard_changes': 'Abandonner les modifications ?', 'keep_editing': 'Continuer',
+    'verify': 'Vérifier', 'resend_code': 'Renvoyer le code',
+  },
+  'de': {
+    'account': 'Konto', 'notifications': 'Benachrichtigungen', 'data_privacy': 'Daten & Datenschutz', 'about': 'Über',
+    'reminders': 'Erinnerungen', 'reminders_sub': 'Erinnerungsbenachrichtigungen anzeigen',
+    'manage_account': 'Konto verwalten', 'manage_account_sub': 'Konto im Web verwalten oder löschen',
+    'save': 'Speichern', 'discard': 'Verwerfen', 'discard_changes': 'Änderungen verwerfen?', 'keep_editing': 'Weiter bearbeiten',
+    'verify': 'Bestätigen', 'resend_code': 'Code erneut senden',
+  },
+  'ru': {
+    'account': 'Аккаунт', 'notifications': 'Уведомления', 'data_privacy': 'Данные и конфиденциальность', 'about': 'О приложении',
+    'reminders': 'Напоминания', 'reminders_sub': 'Показывать уведомления-напоминания',
+    'manage_account': 'Управление аккаунтом', 'manage_account_sub': 'Управляйте или удалите аккаунт в вебе',
+    'save': 'Сохранить', 'discard': 'Отменить', 'discard_changes': 'Отменить изменения?', 'keep_editing': 'Продолжить',
+    'verify': 'Подтвердить', 'resend_code': 'Отправить код повторно',
+  },
+  'ar': {
+    'account': 'الحساب', 'notifications': 'الإشعارات', 'data_privacy': 'البيانات والخصوصية', 'about': 'حول',
+    'reminders': 'التذكيرات', 'reminders_sub': 'إظهار إشعارات التذكير',
+    'manage_account': 'إدارة الحساب', 'manage_account_sub': 'أدر حسابك أو احذفه على الويب',
+    'save': 'حفظ', 'discard': 'تجاهل', 'discard_changes': 'تجاهل التغييرات؟', 'keep_editing': 'متابعة التعديل',
+    'verify': 'تحقق', 'resend_code': 'إعادة إرسال الرمز',
+  },
+  'zh': {
+    'account': '账户', 'notifications': '通知', 'data_privacy': '数据与隐私', 'about': '关于',
+    'reminders': '提醒', 'reminders_sub': '显示提醒通知',
+    'manage_account': '管理账户', 'manage_account_sub': '在网页上管理或删除你的账户',
+    'save': '保存', 'discard': '放弃', 'discard_changes': '放弃更改？', 'keep_editing': '继续编辑',
+    'verify': '验证', 'resend_code': '重新发送验证码',
+  },
+  'ja': {
+    'account': 'アカウント', 'notifications': '通知', 'data_privacy': 'データとプライバシー', 'about': 'このアプリについて',
+    'reminders': 'リマインダー', 'reminders_sub': 'リマインダー通知を表示',
+    'manage_account': 'アカウント管理', 'manage_account_sub': 'ウェブでアカウントを管理または削除',
+    'save': '保存', 'discard': '破棄', 'discard_changes': '変更を破棄しますか？', 'keep_editing': '編集を続ける',
+    'verify': '確認', 'resend_code': 'コードを再送信',
+  },
+  'id': {
+    'account': 'Akun', 'notifications': 'Notifikasi', 'data_privacy': 'Data & Privasi', 'about': 'Tentang',
+    'reminders': 'Pengingat', 'reminders_sub': 'Tampilkan notifikasi pengingat',
+    'manage_account': 'Kelola akun', 'manage_account_sub': 'Kelola atau hapus akun Anda di web',
+    'save': 'Simpan', 'discard': 'Buang', 'discard_changes': 'Buang perubahan?', 'keep_editing': 'Lanjut mengedit',
+    'verify': 'Verifikasi', 'resend_code': 'Kirim ulang kode',
   },
 };
