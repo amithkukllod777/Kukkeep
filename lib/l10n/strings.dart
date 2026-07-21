@@ -546,8 +546,8 @@ const Map<String, Map<String, String>> _extra = {
 
 // Notification / reminder-diagnostics strings (Settings → Notifications).
 const Map<String, Map<String, String>> _notif = {
-  'en': {'notification_sound': 'Notification sound', 'sound_settings': 'Sound & tone', 'test_reminder': 'Send a test notification', 'test_reminder_sent': 'Test notification sent', 'fix_reminders': 'Reminders not arriving?', 'notifications_blocked': 'Notifications are off — turn them on for Kuk Keep'},
-  'hi': {'notification_sound': 'नोटिफ़िकेशन ध्वनि', 'sound_settings': 'ध्वनि और टोन', 'test_reminder': 'टेस्ट नोटिफ़िकेशन भेजें', 'test_reminder_sent': 'टेस्ट नोटिफ़िकेशन भेजा गया', 'fix_reminders': 'रिमाइंडर नहीं आ रहे?', 'notifications_blocked': 'नोटिफ़िकेशन बंद हैं — Kuk Keep के लिए चालू करें'},
+  'en': {'notification_sound': 'Notification sound', 'sound_settings': 'Sound & tone', 'test_reminder': 'Send a test notification', 'test_reminder_sent': 'Sent — one now, one in ~10s (with sound)', 'fix_reminders': 'Reminders not arriving?', 'notifications_blocked': 'Notifications are off — turn them on for Kuk Keep'},
+  'hi': {'notification_sound': 'नोटिफ़िकेशन ध्वनि', 'sound_settings': 'ध्वनि और टोन', 'test_reminder': 'टेस्ट नोटिफ़िकेशन भेजें', 'test_reminder_sent': 'भेजा — एक अभी, एक ~10 सेकंड में (ध्वनि के साथ)', 'fix_reminders': 'रिमाइंडर नहीं आ रहे?', 'notifications_blocked': 'नोटिफ़िकेशन बंद हैं — Kuk Keep के लिए चालू करें'},
   'bn': {'notification_sound': 'বিজ্ঞপ্তির শব্দ', 'sound_settings': 'শব্দ ও টোন', 'test_reminder': 'টেস্ট রিমাইন্ডার পাঠান', 'test_reminder_sent': '~৫ সেকেন্ডে টেস্ট রিমাইন্ডার', 'fix_reminders': 'রিমাইন্ডার আসছে না?'},
   'es': {'notification_sound': 'Sonido de notificación', 'sound_settings': 'Sonido y tono', 'test_reminder': 'Enviar recordatorio de prueba', 'test_reminder_sent': 'Recordatorio de prueba en ~5 s', 'fix_reminders': '¿No llegan los recordatorios?'},
   'pt': {'notification_sound': 'Som da notificação', 'sound_settings': 'Som e tom', 'test_reminder': 'Enviar lembrete de teste', 'test_reminder_sent': 'Lembrete de teste em ~5 s', 'fix_reminders': 'Lembretes não chegam?'},

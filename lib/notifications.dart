@@ -23,10 +23,11 @@ class Notifications {
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   bool _ready = false;
 
-  // Fresh channel ids (the original 'kukkeep_reminders' may be cached on-device
-  // with stale config; a new id forces Android to create it correctly).
-  static const String _channelSound = 'kukkeep_reminders_v2';
-  static const String _channelSilent = 'kukkeep_reminders_silent_v2';
+  // Fresh channel ids. Android caches a channel's sound/importance at CREATION
+  // time and ignores later code changes, so a device that created an earlier
+  // channel silently keeps it silent — bumping the id forces a correct one.
+  static const String _channelSound = 'kukkeep_reminders_v3';
+  static const String _channelSilent = 'kukkeep_reminders_silent_v3';
 
   // ── User preferences (Settings → Notifications) ──
   static const _kRemindersKey = 'kk_reminders_enabled';
@@ -139,11 +140,21 @@ class Notifications {
       try { await a?.requestNotificationsPermission(); } catch (_) {}
       final enabled = (await a?.areNotificationsEnabled()) ?? true;
       if (!enabled) return false;
+      // 1) Immediate notification — proves display + sound (channel) work now.
       await _plugin.show(
         2147483645,
         'Kuk Keep',
-        'Test notification — reminders are working \u{1F514}',
+        'Test notification — you should hear a sound \u{1F514}',
         NotificationDetails(android: _androidDetails),
+      );
+      // 2) A 10-second SCHEDULED reminder — proves the alarm path works
+      //    end-to-end (this is what real note reminders use).
+      try { await a?.requestExactAlarmsPermission(); } catch (_) {}
+      await _scheduleAt(
+        2147483644,
+        'Kuk Keep',
+        'Scheduled test fired on time \u{23F0} — reminders work',
+        DateTime.now().add(const Duration(seconds: 10)),
       );
       return true;
     } catch (_) {
