@@ -62,6 +62,7 @@ void main() {
     await Api.instance.load();
     await loadTheme();
     await LocaleController.load();
+    await Notifications.instance.loadPrefs();
     runApp(const KukKeepApp());
     // Notifications + Firebase push are optional and must NEVER block the first
     // frame — init them after the UI is up (a hang/failure here must not blank the
@@ -82,7 +83,7 @@ class KukKeepApp extends StatelessWidget {
       builder: (_, mode, __) => ValueListenableBuilder<Locale>(
         valueListenable: LocaleController.locale,
         builder: (_, locale, __) => MaterialApp(
-        title: 'KukKeep',
+        title: 'Kuk Keep',
         debugShowCheckedModeBanner: false,
         navigatorKey: GoogleAuth.navigatorKey,
         scaffoldMessengerKey: GoogleAuth.messengerKey,

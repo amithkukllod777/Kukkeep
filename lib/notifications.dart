@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tzdata;
@@ -12,6 +13,28 @@ class Notifications {
 
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   bool _ready = false;
+
+  // User preference (Settings → Notifications). When off, no reminder is
+  // scheduled. Persisted; loaded at startup and updated from Settings.
+  static const _kRemindersKey = 'kk_reminders_enabled';
+  bool _remindersEnabled = true;
+  bool get remindersEnabled => _remindersEnabled;
+
+  Future<void> loadPrefs() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      _remindersEnabled = p.getBool(_kRemindersKey) ?? true;
+    } catch (_) {/* default on */}
+  }
+
+  Future<void> setRemindersEnabled(bool on) async {
+    _remindersEnabled = on;
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setBool(_kRemindersKey, on);
+    } catch (_) {}
+    if (!on) await cancelAll(); // drop any already-armed reminders
+  }
 
   static const AndroidNotificationDetails _androidDetails = AndroidNotificationDetails(
     'kukkeep_reminders',
@@ -41,6 +64,7 @@ class Notifications {
   /// Schedule (or reschedule) a reminder for a note. No-op if the time is in the
   /// past. The note id doubles as the notification id so it can be cancelled.
   Future<void> schedule({required int noteId, required String title, required String body, required DateTime when}) async {
+    if (!_remindersEnabled) return; // user turned reminders off (Settings)
     if (!_ready) await init();
     if (!_ready) return;
     try {
@@ -50,7 +74,7 @@ class Notifications {
       final scheduled = tz.TZDateTime.from(when, tz.UTC);
       Future<void> doSchedule(AndroidScheduleMode mode) => _plugin.zonedSchedule(
         noteId,
-        title.isEmpty ? 'KukKeep reminder' : title,
+        title.isEmpty ? 'Kuk Keep reminder' : title,
         body,
         scheduled,
         const NotificationDetails(android: _androidDetails),
@@ -86,7 +110,7 @@ class Notifications {
     try {
       await _plugin.show(
         DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        title.isEmpty ? 'KukKeep' : title,
+        title.isEmpty ? 'Kuk Keep' : title,
         body,
         const NotificationDetails(android: _androidDetails),
       );

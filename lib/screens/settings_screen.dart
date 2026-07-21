@@ -21,7 +21,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _exporting = false;
-  bool _deleting = false;
   bool _switchingWorkspace = false;
 
   Future<void> _logout() async {
@@ -145,37 +144,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // Account deletion (auth.deleteMyAccount) — Google Play requires an in-app
-  // path for apps with in-app account creation; see qa-audit/PRODUCTION_READINESS_CHECKLIST.md.
-  Future<void> _deleteAccount() async {
-    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
-      title: const Text('Delete your account?'),
-      content: const Text(
-          'This permanently anonymizes your Kuklabs account and removes your '
-          'access to it. Notes and other content tied to a shared workspace '
-          'may be retained where required by law. This cannot be undone.'),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-        TextButton(onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete account', style: TextStyle(color: Colors.red))),
-      ]));
-    if (ok != true) return;
-    setState(() => _deleting = true);
-    try {
-      await Notifications.instance.cancelAll();
-      await Api.instance.deleteAccount();
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const AuthScreen()), (r) => false);
-    } catch (e) {
-      // e.g. "you still own a company — transfer ownership first" — the
-      // server's own message here is already actionable, not technical.
-      _snack(friendlyError(e));
-    } finally {
-      if (mounted) setState(() => _deleting = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -184,7 +152,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         valueListenable: themeNotifier,
         builder: (_, mode, __) => ListView(
           children: [
-            const _Section('Account'),
+            _Section(tr('account')),
             ListTile(
               leading: const Icon(Icons.account_circle_outlined, color: kBrand),
               title: Text(Api.instance.userName?.isNotEmpty == true ? Api.instance.userName! : 'Kuklabs account'),
@@ -206,7 +174,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: _pickLanguage,
             ),
             const Divider(),
-            const _Section('Theme'),
+            _Section(tr('theme')),
             RadioListTile<ThemeMode>(
               value: ThemeMode.system, groupValue: mode, activeColor: kBrand,
               title: Text(tr('system_default')), onChanged: (m) => setThemeMode(m!)),
@@ -216,6 +184,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             RadioListTile<ThemeMode>(
               value: ThemeMode.dark, groupValue: mode, activeColor: kBrand,
               title: Text(tr('dark')), onChanged: (m) => setThemeMode(m!)),
+            const Divider(),
+            _Section(tr('notifications')),
+            SwitchListTile(
+              secondary: const Icon(Icons.notifications_active_outlined, color: kBrand),
+              title: Text(tr('reminders')),
+              subtitle: Text(tr('reminders_sub')),
+              value: Notifications.instance.remindersEnabled,
+              activeColor: kBrand,
+              onChanged: (v) async {
+                await Notifications.instance.setRemindersEnabled(v);
+                if (mounted) setState(() {});
+              },
+            ),
             const Divider(),
             const _Section('Privacy & Trust'),
             const Padding(
@@ -228,7 +209,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ]),
             ),
             const Divider(),
-            const _Section('Data & Privacy'),
+            _Section(tr('data_privacy')),
             ListTile(
               leading: _exporting
                   ? const SizedBox(width: 22, height: 22, child: Padding(padding: EdgeInsets.all(2), child: CircularProgressIndicator(strokeWidth: 2, color: kBrand)))
@@ -248,7 +229,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () => _open('https://kuklabs.com/privacy'),
             ),
             const Divider(),
-            const _Section('About'),
+            _Section(tr('about')),
             const ListTile(
               leading: Icon(Icons.info_outline),
               title: Text(kProductName),
@@ -267,14 +248,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: _logout,
             ),
             const Divider(),
-            const _Section('Danger Zone'),
+            // Account management (incl. deletion) lives on the web — Google Play's
+            // Account Deletion policy is satisfied by this clearly-labelled path
+            // plus the same URL declared in the Play Console Data Safety form.
             ListTile(
-              leading: _deleting
-                  ? const SizedBox(width: 22, height: 22, child: Padding(padding: EdgeInsets.all(2), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red)))
-                  : const Icon(Icons.delete_forever, color: Colors.red),
-              title: Text(tr('delete_account'), style: const TextStyle(color: Colors.red)),
-              subtitle: Text(tr('delete_account_sub')),
-              onTap: _deleting ? null : _deleteAccount,
+              leading: const Icon(Icons.manage_accounts_outlined, color: kBrand),
+              title: Text(tr('manage_account')),
+              subtitle: Text(tr('manage_account_sub')),
+              onTap: () => _open('https://kuklabs.com/account'),
             ),
             const SizedBox(height: 16),
           ],

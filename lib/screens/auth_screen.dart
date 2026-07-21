@@ -187,7 +187,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           style: TextStyle(fontSize: tight ? 20 : 23, height: 1.2, fontWeight: FontWeight.w500, color: kTextPrimary, fontFamily: kFont)),
                       Text.rich(
                         const TextSpan(children: [
-                          TextSpan(text: 'Kuk', style: TextStyle(color: kTextPrimary)),
+                          TextSpan(text: 'Kuk ', style: TextStyle(color: kTextPrimary)),
                           TextSpan(text: 'Keep', style: TextStyle(color: kBrand)),
                         ]),
                         textAlign: TextAlign.center,

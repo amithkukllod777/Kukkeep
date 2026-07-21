@@ -1,7 +1,7 @@
 name: kukkeep
 description: KukKeep — native notes, checklists & reminders (Flutter). Connects to your KukLabs account.
 publish_to: 'none'
-version: 2.4.1+39
+version: 2.5.0+40
 
 environment:
   sdk: '>=3.4.0 <4.0.0'

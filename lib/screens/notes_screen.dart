@@ -323,7 +323,7 @@ class _NotesScreenState extends State<NotesScreen> {
       case 'archive': return 'Archive';
       case 'trash': return 'Trash';
       case 'label': return _activeLabel ?? 'Label';
-      default: return 'KukKeep';
+      default: return 'Kuk Keep';
     }
   }
 
@@ -487,7 +487,7 @@ class _NotesScreenState extends State<NotesScreen> {
               child: Row(children: [
                 Image.asset(kLogoAsset, width: 34, height: 34),
                 const SizedBox(width: 10),
-                const Text('KukKeep', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                const Text('Kuk Keep', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
               ]),
             ),
             _drawerTile('notes', 'Notes', Icons.lightbulb_outline),
