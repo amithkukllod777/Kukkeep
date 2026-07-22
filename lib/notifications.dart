@@ -269,13 +269,21 @@ class Notifications {
           androidScheduleMode: mode,
           uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
         );
+    // alarmClock = AlarmManager.setAlarmClock(): the highest-priority alarm,
+    // fires on time even in Doze, and does not require the SCHEDULE_EXACT_ALARM
+    // special access — the most reliable mode for user-facing reminders. Fall
+    // back to exact, then inexact, if a mode is unavailable.
     try {
-      await go(AndroidScheduleMode.exactAllowWhileIdle); // on time, even in Doze
+      await go(AndroidScheduleMode.alarmClock);
     } catch (_) {
-      // Exact-alarm permission denied — an approximate reminder still beats none.
       try {
-        await go(AndroidScheduleMode.inexactAllowWhileIdle);
-      } catch (_) {}
+        await go(AndroidScheduleMode.exactAllowWhileIdle); // on time, even in Doze
+      } catch (_) {
+        // Exact-alarm permission denied — an approximate reminder still beats none.
+        try {
+          await go(AndroidScheduleMode.inexactAllowWhileIdle);
+        } catch (_) {}
+      }
     }
   }
 
