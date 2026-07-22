@@ -129,6 +129,50 @@ class Notifications {
     }
   }
 
+  /// On-device diagnostic. Returns a human-readable report of exactly what
+  /// works and what fails (permission, exact-alarm capability, immediate show,
+  /// scheduled alarm), plus fires a 10s scheduled reminder. Shown in Settings
+  /// so failures are visible without a logcat.
+  Future<String> diagnose() async {
+    final b = StringBuffer();
+    try {
+      if (!_ready) await init();
+      b.writeln('Plugin ready: $_ready');
+      final a = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      if (a == null) { b.writeln('Android impl: NULL (not Android?)'); return b.toString(); }
+      try { await a.requestNotificationsPermission(); } catch (e) { b.writeln('requestNotif err: $e'); }
+      try { await a.requestExactAlarmsPermission(); } catch (e) { b.writeln('requestExact err: $e'); }
+      b.writeln('Notifications enabled: ${await a.areNotificationsEnabled()}');
+      try { b.writeln('Can schedule EXACT alarms: ${await a.canScheduleExactNotifications()}'); }
+      catch (e) { b.writeln('canScheduleExact err: $e'); }
+      // Immediate (no AlarmManager).
+      try {
+        await _plugin.show(2147483645, 'Kuk Keep', 'Immediate test \u{1F514}', NotificationDetails(android: _androidDetails));
+        b.writeln('Immediate show: OK');
+      } catch (e) { b.writeln('Immediate show FAILED: $e'); }
+      // Scheduled 10s (the real reminder path) — report the actual exception.
+      final when = tz.TZDateTime.now(tz.UTC).add(const Duration(seconds: 10));
+      try {
+        await _plugin.cancel(2147483644);
+        await _plugin.zonedSchedule(2147483644, 'Kuk Keep', 'Scheduled test \u{23F0} (10s)', when,
+            NotificationDetails(android: _androidDetails),
+            androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+            uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime);
+        b.writeln('Schedule EXACT 10s: OK — wait 10s');
+      } catch (e) {
+        b.writeln('Schedule EXACT FAILED: $e');
+        try {
+          await _plugin.zonedSchedule(2147483644, 'Kuk Keep', 'Scheduled test \u{23F0} (10s inexact)', when,
+              NotificationDetails(android: _androidDetails),
+              androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+              uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime);
+          b.writeln('Schedule INEXACT 10s: OK — wait 10s');
+        } catch (e2) { b.writeln('Schedule INEXACT FAILED: $e2'); }
+      }
+    } catch (e) { b.writeln('diagnose error: $e'); }
+    return b.toString();
+  }
+
   /// Immediate diagnostic notification (NOT scheduled — bypasses the alarm
   /// subsystem entirely). Returns false if the OS is blocking notifications, so
   /// the caller can send the user to system settings to enable them.

@@ -39,17 +39,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Fires a reminder ~5s out through the real scheduling path so the user can
   // confirm reminders reach them; also (re)requests the needed permissions.
   Future<void> _testReminder() async {
-    // Immediate show (not scheduled) — proves the app can post a notification
-    // at all, independent of the alarm subsystem.
-    final ok = await Notifications.instance.sendTestNow();
+    // Runs an on-device diagnostic (permission, exact-alarm capability,
+    // immediate + scheduled) and shows the result so failures are visible
+    // without a logcat. Also fires a 10s scheduled reminder to watch for.
+    final report = await Notifications.instance.diagnose();
     if (!mounted) return;
-    if (ok) {
-      _snack(tr('test_reminder_sent'));
-    } else {
-      // The OS is blocking notifications — take the user to the system screen.
-      _snack(tr('notifications_blocked'));
-      await AppSettings.openAppSettings(type: AppSettingsType.notification);
-    }
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Notification diagnostics'),
+        content: SingleChildScrollView(
+          child: SelectableText(report, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () { Clipboard.setData(ClipboardData(text: report)); _snack('Copied'); },
+            child: const Text('Copy'),
+          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('close'))),
+        ],
+      ),
+    );
   }
 
   // Language picker (multi-language support). Persists via LocaleController;
