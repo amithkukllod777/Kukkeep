@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 import 'offline_store.dart';
+import 'push.dart';
 
 // Every network call gets a consistent ceiling instead of hanging forever on
 // a stalled connection (qa-audit SEC-007).
@@ -73,6 +74,7 @@ class Api {
     _token = null;
     _companyId = null;
     userName = null;
+    _lastRegisteredPushToken = null; // next user re-registers this device's token
     await _secureStorage.delete(key: 'kk_token');
     final p = await SharedPreferences.getInstance();
     await p.remove('kk_company');
@@ -196,6 +198,7 @@ class Api {
     _token = null;
     _companyId = null;
     userName = null;
+    _lastRegisteredPushToken = null;
     await _secureStorage.delete(key: 'kk_token');
     final p = await SharedPreferences.getInstance();
     await p.remove('kk_company');
@@ -286,6 +289,9 @@ class Api {
 
   bool _flushingOutbox = false;
   bool _lastNotesFromCache = false;
+  // The FCM device token last registered with the backend this session — so we
+  // only POST it when it's new/changed (and re-register after a login switch).
+  String? _lastRegisteredPushToken;
   /// True if the most recent `notes()` call served the local cache instead of
   /// a live server response (lets the UI show a small "offline" indicator).
   bool get isOffline => _lastNotesFromCache;
@@ -297,6 +303,7 @@ class Api {
       _lastNotesFromCache = false;
       unawaited(OfflineStore.instance.saveNotes(archived: archived, trashed: trashed, notes: list));
       unawaited(flushOutbox()); // a successful round-trip proves we're online
+      unawaited(_maybeRegisterPushToken()); // also proves we're logged in + have a company
       return list;
     } catch (e) {
       if (_isConnectivityError(e) && await OfflineStore.instance.hasCacheFor(archived: archived, trashed: trashed)) {
@@ -305,6 +312,20 @@ class Api {
       }
       rethrow;
     }
+  }
+
+  /// Register this device's FCM token with the backend so the server can push
+  /// reminders even when the OS has killed the app (the reliable delivery path
+  /// on battery-optimizing OEMs). Best-effort: requires a session + an active
+  /// company + a token, only re-sends when the token is new, and never throws.
+  Future<void> _maybeRegisterPushToken() async {
+    if (_token == null || _companyId == null) return;
+    final t = Push.instance.token;
+    if (t == null || t.isEmpty || t == _lastRegisteredPushToken) return;
+    try {
+      await mutate('notifications.registerFcmToken', {'token': t, 'platform': 'android'});
+      _lastRegisteredPushToken = t;
+    } catch (_) {/* best-effort — a returning tick or app launch retries */}
   }
 
   Future<void> createNote(Map<String, dynamic> input) async {
