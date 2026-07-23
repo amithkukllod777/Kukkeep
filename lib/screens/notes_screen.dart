@@ -121,9 +121,11 @@ class _NotesScreenState extends State<NotesScreen> {
       if (n.reminderAt == null) continue;
       DateTime? when;
       try { when = DateTime.parse(n.reminderAt!).toLocal(); } catch (_) { continue; }
-      if (when.isAfter(DateTime.now())) {
+      // Re-arm future one-shots, and ALL recurring reminders (a recurring one
+      // rolls to its next occurrence even when its base time is in the past).
+      if (when.isAfter(DateTime.now()) || n.repeat != 'none') {
         final body = n.type == 'note' ? n.body : n.items.where((i) => i.text.trim().isNotEmpty).map((i) => i.text.trim()).join(', ');
-        Notifications.instance.schedule(noteId: n.id, title: n.title, body: body, when: when);
+        Notifications.instance.schedule(noteId: n.id, title: n.title, body: body, when: when, repeat: n.repeat);
       }
     }
   }

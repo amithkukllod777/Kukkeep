@@ -246,13 +246,28 @@ class Notifications {
     }
   }
 
+  // Maps a repeat choice to the plugin's recurrence rule. null = one-shot.
+  DateTimeComponents? _repeatComponents(String repeat) {
+    switch (repeat) {
+      case 'daily':   return DateTimeComponents.time;              // same time each day
+      case 'weekly':  return DateTimeComponents.dayOfWeekAndTime;  // same weekday + time
+      case 'monthly': return DateTimeComponents.dayOfMonthAndTime; // same day-of-month + time
+      default:        return null;                                 // 'none' → fire once
+    }
+  }
+
   // Shared scheduling core. Ignores the user's on/off pref so it can also power
-  // the "send test reminder" diagnostic.
-  Future<void> _scheduleAt(int id, String title, String body, DateTime when) async {
+  // the "send test reminder" diagnostic. `repeat` = none|daily|weekly|monthly:
+  // when recurring, the OS re-fires at each matching daily/weekly/monthly slot.
+  Future<void> _scheduleAt(int id, String title, String body, DateTime when, {String repeat = 'none'}) async {
     if (!_ready) await init();
     if (!_ready) return;
     await _plugin.cancel(id);
-    if (when.isBefore(DateTime.now())) return;
+    final components = _repeatComponents(repeat);
+    // A one-shot in the past never fires — skip it. A recurring reminder whose
+    // base time is in the past is fine: the plugin advances to the next matching
+    // occurrence (e.g. a daily 9am reminder set at 10am fires tomorrow 9am).
+    if (components == null && when.isBefore(DateTime.now())) return;
     // Express the absolute instant in the device's local zone (tz.local, set in
     // init()). flutter_local_notifications fires based on the scheduled
     // TZDateTime's wall-clock components in the device zone, so this must be
@@ -267,32 +282,30 @@ class Notifications {
           scheduled,
           details,
           androidScheduleMode: mode,
+          matchDateTimeComponents: components, // non-null → repeats daily/weekly/monthly
           uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
         );
-    // alarmClock = AlarmManager.setAlarmClock(): the highest-priority alarm,
-    // fires on time even in Doze, and does not require the SCHEDULE_EXACT_ALARM
-    // special access — the most reliable mode for user-facing reminders. Fall
-    // back to exact, then inexact, if a mode is unavailable.
-    try {
-      await go(AndroidScheduleMode.alarmClock);
-    } catch (_) {
-      try {
-        await go(AndroidScheduleMode.exactAllowWhileIdle); // on time, even in Doze
-      } catch (_) {
-        // Exact-alarm permission denied — an approximate reminder still beats none.
-        try {
-          await go(AndroidScheduleMode.inexactAllowWhileIdle);
-        } catch (_) {}
-      }
+    // One-shot: alarmClock = AlarmManager.setAlarmClock() — highest priority,
+    // fires in Doze, no exact-alarm special access needed. Recurring: the
+    // repeating path uses exact-allow-while-idle (the mode documented for
+    // matchDateTimeComponents; alarmClock isn't meant for recurrence). Both
+    // fall back to inexact if exact isn't permitted.
+    final modes = components == null
+        ? const [AndroidScheduleMode.alarmClock, AndroidScheduleMode.exactAllowWhileIdle, AndroidScheduleMode.inexactAllowWhileIdle]
+        : const [AndroidScheduleMode.exactAllowWhileIdle, AndroidScheduleMode.inexactAllowWhileIdle];
+    for (final m in modes) {
+      try { await go(m); return; } catch (_) {/* try the next, weaker mode */}
     }
   }
 
-  /// Schedule (or reschedule) a reminder for a note. No-op if reminders are off
-  /// or the time is in the past. The note id doubles as the notification id.
-  Future<void> schedule({required int noteId, required String title, required String body, required DateTime when}) async {
+  /// Schedule (or reschedule) a reminder for a note. No-op if reminders are off.
+  /// `repeat` = none|daily|weekly|monthly. The note id doubles as the
+  /// notification id. A one-shot in the past is skipped; a recurring one rolls
+  /// to its next occurrence.
+  Future<void> schedule({required int noteId, required String title, required String body, required DateTime when, String repeat = 'none'}) async {
     if (!_remindersEnabled) return; // user turned reminders off (Settings)
     try {
-      await _scheduleAt(noteId, title, body, when);
+      await _scheduleAt(noteId, title, body, when, repeat: repeat);
     } catch (_) {/* ignore scheduling errors */}
   }
 

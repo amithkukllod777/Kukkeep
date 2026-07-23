@@ -72,9 +72,11 @@ String tr(String key) {
   return _t[code]?[key] ??
       _extra[code]?[key] ??
       _notif[code]?[key] ??
+      _repeat[code]?[key] ??
       _t['en']?[key] ??
       _extra['en']?[key] ??
       _notif['en']?[key] ??
+      _repeat['en']?[key] ??
       key;
 }
 
@@ -558,4 +560,20 @@ const Map<String, Map<String, String>> _notif = {
   'zh': {'notification_sound': '通知声音', 'sound_settings': '声音与铃声', 'test_reminder': '发送测试提醒', 'test_reminder_sent': '约5秒后发送测试提醒', 'fix_reminders': '提醒收不到？'},
   'ja': {'notification_sound': '通知音', 'sound_settings': 'サウンドと音', 'test_reminder': 'テスト通知を送信', 'test_reminder_sent': '約5秒後にテスト通知', 'fix_reminders': '通知が届かない？'},
   'id': {'notification_sound': 'Suara notifikasi', 'sound_settings': 'Suara & nada', 'test_reminder': 'Kirim pengingat uji', 'test_reminder_sent': 'Pengingat uji dalam ~5 dtk', 'fix_reminders': 'Pengingat tidak muncul?'},
+};
+
+// Reminder + recurrence strings (note editor). tr() falls back to English.
+const Map<String, Map<String, String>> _repeat = {
+  'en': {'add_reminder': 'Add reminder', 'remove_reminder': 'Remove reminder', 'repeat_none': 'Does not repeat', 'repeat_daily': 'Daily', 'repeat_weekly': 'Weekly', 'repeat_monthly': 'Monthly'},
+  'hi': {'add_reminder': 'रिमाइंडर जोड़ें', 'remove_reminder': 'रिमाइंडर हटाएं', 'repeat_none': 'दोहराएं नहीं', 'repeat_daily': 'रोज़ाना', 'repeat_weekly': 'साप्ताहिक', 'repeat_monthly': 'मासिक'},
+  'bn': {'add_reminder': 'রিমাইন্ডার যোগ করুন', 'remove_reminder': 'রিমাইন্ডার সরান', 'repeat_none': 'পুনরাবৃত্তি নয়', 'repeat_daily': 'দৈনিক', 'repeat_weekly': 'সাপ্তাহিক', 'repeat_monthly': 'মাসিক'},
+  'es': {'add_reminder': 'Añadir recordatorio', 'remove_reminder': 'Quitar recordatorio', 'repeat_none': 'No se repite', 'repeat_daily': 'Diario', 'repeat_weekly': 'Semanal', 'repeat_monthly': 'Mensual'},
+  'pt': {'add_reminder': 'Adicionar lembrete', 'remove_reminder': 'Remover lembrete', 'repeat_none': 'Não se repete', 'repeat_daily': 'Diário', 'repeat_weekly': 'Semanal', 'repeat_monthly': 'Mensal'},
+  'fr': {'add_reminder': 'Ajouter un rappel', 'remove_reminder': 'Supprimer le rappel', 'repeat_none': 'Ne se répète pas', 'repeat_daily': 'Quotidien', 'repeat_weekly': 'Hebdomadaire', 'repeat_monthly': 'Mensuel'},
+  'de': {'add_reminder': 'Erinnerung hinzufügen', 'remove_reminder': 'Erinnerung entfernen', 'repeat_none': 'Wiederholt sich nicht', 'repeat_daily': 'Täglich', 'repeat_weekly': 'Wöchentlich', 'repeat_monthly': 'Monatlich'},
+  'ru': {'add_reminder': 'Добавить напоминание', 'remove_reminder': 'Удалить напоминание', 'repeat_none': 'Не повторять', 'repeat_daily': 'Ежедневно', 'repeat_weekly': 'Еженедельно', 'repeat_monthly': 'Ежемесячно'},
+  'ar': {'add_reminder': 'إضافة تذكير', 'remove_reminder': 'إزالة التذكير', 'repeat_none': 'لا يتكرر', 'repeat_daily': 'يوميًا', 'repeat_weekly': 'أسبوعيًا', 'repeat_monthly': 'شهريًا'},
+  'zh': {'add_reminder': '添加提醒', 'remove_reminder': '移除提醒', 'repeat_none': '不重复', 'repeat_daily': '每天', 'repeat_weekly': '每周', 'repeat_monthly': '每月'},
+  'ja': {'add_reminder': 'リマインダーを追加', 'remove_reminder': 'リマインダーを削除', 'repeat_none': '繰り返さない', 'repeat_daily': '毎日', 'repeat_weekly': '毎週', 'repeat_monthly': '毎月'},
+  'id': {'add_reminder': 'Tambah pengingat', 'remove_reminder': 'Hapus pengingat', 'repeat_none': 'Tidak berulang', 'repeat_daily': 'Harian', 'repeat_weekly': 'Mingguan', 'repeat_monthly': 'Bulanan'},
 };
