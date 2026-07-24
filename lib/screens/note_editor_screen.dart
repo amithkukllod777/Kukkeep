@@ -490,6 +490,107 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
     );
   }
 
+  // Version history (Keep parity): list this note's past content snapshots and
+  // let the user restore any one. The current edits are saved first so nothing
+  // in progress is lost, then the server-recorded versions are fetched.
+  Future<void> _openVersionHistory() async {
+    if (_noteId == null) return;
+    // Flush any pending edit so the history reflects the latest content.
+    try { if (_snapshot() != _initialSnapshot) { await _persist(_payload()); _initialSnapshot = _snapshot(); } } catch (_) {}
+    List<NoteVersion> versions;
+    try {
+      versions = await Api.instance.noteVersions(_noteId!);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+      return;
+    }
+    if (!mounted) return;
+    if (versions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('no_versions'))));
+      return;
+    }
+    final fmt = DateFormat.yMMMd().add_jm();
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Row(children: [
+              const Icon(Icons.history, size: 20),
+              const SizedBox(width: 8),
+              Text(tr('version_history'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            ]),
+          ),
+          Flexible(
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: versions.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (_, i) {
+                final v = versions[i];
+                final preview = v.preview.trim();
+                return ListTile(
+                  title: Text(v.createdAt != null ? fmt.format(v.createdAt!) : '#${v.id}',
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  subtitle: preview.isEmpty ? null : Text(preview, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  trailing: TextButton(
+                    onPressed: () async { Navigator.pop(ctx); await _restoreVersion(v); },
+                    child: Text(tr('restore'), style: const TextStyle(color: kBrandDark, fontWeight: FontWeight.bold)),
+                  ),
+                  onTap: () async { Navigator.pop(ctx); await _restoreVersion(v); },
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+  }
+
+  // Restore the note to [v] after a confirm, then reflect it in the open editor.
+  Future<void> _restoreVersion(NoteVersion v) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        title: Text(tr('restore_version_q')),
+        content: Text(tr('restore_version_sub')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dctx, false), child: Text(tr('cancel'))),
+          TextButton(onPressed: () => Navigator.pop(dctx, true), child: Text(tr('restore'))),
+        ],
+      ),
+    );
+    if (ok != true || !mounted || _noteId == null) return;
+    try {
+      await Api.instance.restoreNoteVersion(_noteId!, v.id);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+      return;
+    }
+    if (!mounted) return;
+    _applyVersion(v);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('version_restored'))));
+  }
+
+  // Load a restored version's content into the live editor. The server already
+  // holds this content (restore snapshotted the prior state first), so we align
+  // _initialSnapshot to it — the editor is not "dirty" and won't re-save on back.
+  void _applyVersion(NoteVersion v) {
+    setState(() {
+      _title.text = v.title;
+      _body.text = v.body;
+      _type = v.type == 'checklist' ? 'checklist' : 'note';
+      _items = v.items.map((e) => ChecklistItem(text: e.text, done: e.done)).toList();
+      _disposeItemControllers();
+      _buildItemControllers();
+    });
+    _initialSnapshot = _snapshot();
+  }
+
   // Creates or updates the note and schedules/cancels its local reminder
   // notification. Shared by the explicit Save/back path and the background
   // autosave hook (BUG-005/BUG-010) — throws on failure, caller decides how
@@ -630,6 +731,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
           IconButton(tooltip: _pinned ? 'Unpin' : 'Pin', icon: Icon(_pinned ? Icons.push_pin : Icons.push_pin_outlined, color: _pinned ? kBrandDark : Colors.black54), onPressed: () => setState(() => _pinned = !_pinned)),
           IconButton(tooltip: tr('share'), icon: const Icon(Icons.share_outlined, color: Colors.black54), onPressed: _shareNote),
           IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, color: Colors.black54), onPressed: _delete),
+          if (!_isNew)
+            IconButton(tooltip: tr('version_history'), icon: const Icon(Icons.history, color: Colors.black54), onPressed: _openVersionHistory),
           TextButton(onPressed: _saving ? null : _save, child: _saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Text(tr('save'), style: const TextStyle(color: kBrandDark, fontWeight: FontWeight.bold))),
         ],
       ),

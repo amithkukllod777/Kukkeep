@@ -76,6 +76,7 @@ String tr(String key) {
       _voice[code]?[key] ??
       _filter[code]?[key] ??
       _share[code]?[key] ??
+      _history[code]?[key] ??
       _t['en']?[key] ??
       _extra['en']?[key] ??
       _notif['en']?[key] ??
@@ -83,6 +84,7 @@ String tr(String key) {
       _voice['en']?[key] ??
       _filter['en']?[key] ??
       _share['en']?[key] ??
+      _history['en']?[key] ??
       key;
 }
 
@@ -630,4 +632,20 @@ const Map<String, Map<String, String>> _share = {
   'zh': {'share': '分享', 'export_notes': '导出笔记', 'export_notes_sub': '将所有笔记保存为文件', 'nothing_to_export': '没有可导出的笔记'},
   'ja': {'share': '共有', 'export_notes': 'メモをエクスポート', 'export_notes_sub': 'すべてのメモをファイルとして保存', 'nothing_to_export': 'エクスポートするメモがありません'},
   'id': {'share': 'Bagikan', 'export_notes': 'Ekspor catatan', 'export_notes_sub': 'Simpan semua catatan sebagai file', 'nothing_to_export': 'Tidak ada catatan untuk diekspor'},
+};
+
+// Version-history strings. tr() falls back to English.
+const Map<String, Map<String, String>> _history = {
+  'en': {'version_history': 'Version history', 'restore': 'Restore', 'no_versions': 'No earlier versions yet', 'restore_version_q': 'Restore this version?', 'restore_version_sub': 'The current note is saved as a version first, so you can undo this.', 'version_restored': 'Version restored'},
+  'hi': {'version_history': 'संस्करण इतिहास', 'restore': 'पुनर्स्थापित करें', 'no_versions': 'अभी कोई पुराना संस्करण नहीं', 'restore_version_q': 'यह संस्करण पुनर्स्थापित करें?', 'restore_version_sub': 'मौजूदा नोट पहले एक संस्करण के रूप में सहेजा जाता है, ताकि आप इसे पूर्ववत कर सकें।', 'version_restored': 'संस्करण पुनर्स्थापित हुआ'},
+  'bn': {'version_history': 'সংস্করণ ইতিহাস', 'restore': 'পুনরুদ্ধার', 'no_versions': 'এখনও কোনো পুরনো সংস্করণ নেই', 'restore_version_q': 'এই সংস্করণ পুনরুদ্ধার করবেন?', 'restore_version_sub': 'বর্তমান নোটটি প্রথমে একটি সংস্করণ হিসেবে সংরক্ষিত হয়, তাই আপনি এটি পূর্বাবস্থায় ফেরাতে পারেন।', 'version_restored': 'সংস্করণ পুনরুদ্ধার হয়েছে'},
+  'es': {'version_history': 'Historial de versiones', 'restore': 'Restaurar', 'no_versions': 'Aún no hay versiones anteriores', 'restore_version_q': '¿Restaurar esta versión?', 'restore_version_sub': 'La nota actual se guarda primero como versión, para que puedas deshacerlo.', 'version_restored': 'Versión restaurada'},
+  'pt': {'version_history': 'Histórico de versões', 'restore': 'Restaurar', 'no_versions': 'Ainda não há versões anteriores', 'restore_version_q': 'Restaurar esta versão?', 'restore_version_sub': 'A nota atual é salva primeiro como versão, para que você possa desfazer.', 'version_restored': 'Versão restaurada'},
+  'fr': {'version_history': 'Historique des versions', 'restore': 'Restaurer', 'no_versions': 'Aucune version antérieure', 'restore_version_q': 'Restaurer cette version ?', 'restore_version_sub': 'La note actuelle est d’abord enregistrée comme version, pour que vous puissiez annuler.', 'version_restored': 'Version restaurée'},
+  'de': {'version_history': 'Versionsverlauf', 'restore': 'Wiederherstellen', 'no_versions': 'Noch keine früheren Versionen', 'restore_version_q': 'Diese Version wiederherstellen?', 'restore_version_sub': 'Die aktuelle Notiz wird zuerst als Version gespeichert, damit du dies rückgängig machen kannst.', 'version_restored': 'Version wiederhergestellt'},
+  'ru': {'version_history': 'История версий', 'restore': 'Восстановить', 'no_versions': 'Пока нет прежних версий', 'restore_version_q': 'Восстановить эту версию?', 'restore_version_sub': 'Текущая заметка сначала сохраняется как версия, чтобы это можно было отменить.', 'version_restored': 'Версия восстановлена'},
+  'ar': {'version_history': 'سجل الإصدارات', 'restore': 'استعادة', 'no_versions': 'لا توجد إصدارات سابقة بعد', 'restore_version_q': 'استعادة هذا الإصدار؟', 'restore_version_sub': 'يتم حفظ الملاحظة الحالية كإصدار أولاً، حتى تتمكن من التراجع.', 'version_restored': 'تمت استعادة الإصدار'},
+  'zh': {'version_history': '版本历史', 'restore': '恢复', 'no_versions': '暂无历史版本', 'restore_version_q': '恢复此版本？', 'restore_version_sub': '当前笔记会先保存为一个版本，以便你撤销。', 'version_restored': '已恢复版本'},
+  'ja': {'version_history': 'バージョン履歴', 'restore': '復元', 'no_versions': '以前のバージョンはまだありません', 'restore_version_q': 'このバージョンを復元しますか？', 'restore_version_sub': '現在のメモは先にバージョンとして保存されるため、元に戻せます。', 'version_restored': 'バージョンを復元しました'},
+  'id': {'version_history': 'Riwayat versi', 'restore': 'Pulihkan', 'no_versions': 'Belum ada versi sebelumnya', 'restore_version_q': 'Pulihkan versi ini?', 'restore_version_sub': 'Catatan saat ini disimpan sebagai versi dulu, jadi Anda bisa membatalkannya.', 'version_restored': 'Versi dipulihkan'},
 };
