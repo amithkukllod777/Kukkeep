@@ -116,4 +116,5 @@ class Attachment {
         ocrText: j['ocrText']?.toString(),
       );
   bool get isImage => fileType.startsWith('image/');
+  bool get isAudio => fileType.startsWith('audio/'); // voice notes
 }

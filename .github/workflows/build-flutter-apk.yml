@@ -138,6 +138,8 @@ jobs:
             sed -i 's|<application|<uses-permission android:name="android.permission.WAKE_LOCK"/>\n    <application|' "$M"
           grep -q 'android.permission.USE_FULL_SCREEN_INTENT' "$M" || \
             sed -i 's|<application|<uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>\n    <application|' "$M"
+          grep -q 'android.permission.RECORD_AUDIO' "$M" || \
+            sed -i 's|<application|<uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <application|' "$M"
 
       - name: Register flutter_local_notifications receivers (CRITICAL — else scheduled reminders never fire)
         # The plugin's own manifest declares ONLY the VIBRATE/POST_NOTIFICATIONS
