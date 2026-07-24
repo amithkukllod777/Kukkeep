@@ -121,9 +121,11 @@ class _NotesScreenState extends State<NotesScreen> {
       if (n.reminderAt == null) continue;
       DateTime? when;
       try { when = DateTime.parse(n.reminderAt!).toLocal(); } catch (_) { continue; }
-      if (when.isAfter(DateTime.now())) {
+      // Re-arm future one-shots, and ALL recurring reminders (a recurring one
+      // rolls to its next occurrence even when its base time is in the past).
+      if (when.isAfter(DateTime.now()) || n.repeat != 'none') {
         final body = n.type == 'note' ? n.body : n.items.where((i) => i.text.trim().isNotEmpty).map((i) => i.text.trim()).join(', ');
-        Notifications.instance.schedule(noteId: n.id, title: n.title, body: body, when: when);
+        Notifications.instance.schedule(noteId: n.id, title: n.title, body: body, when: when, repeat: n.repeat);
       }
     }
   }
@@ -148,7 +150,11 @@ class _NotesScreenState extends State<NotesScreen> {
     // which view is open (BUG-003) — Trash stays separately scoped, matching
     // the convention that deleted items don't surface in general search.
     var list = (q.isNotEmpty && !_isTrash) ? [..._liveNotes, ..._archivedNotes] : _notes;
-    if (_view == 'reminders') list = list.where((n) => n.reminderAt != null).toList();
+    if (_view == 'reminders') {
+      list = list.where((n) => n.reminderAt != null).toList();
+      // Soonest reminder first (ISO-8601 UTC strings sort chronologically).
+      list.sort((a, b) => (a.reminderAt ?? '').compareTo(b.reminderAt ?? ''));
+    }
     if (_view == 'label' && _activeLabel != null) list = list.where((n) => n.labels.contains(_activeLabel)).toList();
     if (q.isNotEmpty) {
       list = list.where((n) =>
@@ -685,7 +691,7 @@ class _NotesScreenState extends State<NotesScreen> {
                   if (n.id < 0) _chip('Not synced', Icons.cloud_off, brand: true),
                   for (final l in n.labels) _chip(l, Icons.label_outline),
                   if (n.attachmentCount > 0) _chip('${n.attachmentCount}', Icons.attach_file),
-                  if (n.reminderAt != null) _chip(_fmt(n.reminderAt!), Icons.notifications_none, brand: true),
+                  if (n.reminderAt != null) _chip(_fmt(n.reminderAt!), n.repeat != 'none' ? Icons.repeat : Icons.notifications_none, brand: true, danger: n.repeat == 'none' && _isOverdue(n.reminderAt!)),
                 ])),
               Padding(padding: const EdgeInsets.only(top: 8), child: _isTrash
                 ? Row(children: [
@@ -728,18 +734,26 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
-  Widget _chip(String text, IconData icon, {bool brand = false}) => Container(
+  Widget _chip(String text, IconData icon, {bool brand = false, bool danger = false}) {
+    final color = danger ? kError : (brand ? kBrandDark : Colors.black54);
+    return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(color: Colors.white.withOpacity(0.7), borderRadius: BorderRadius.circular(20)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 12, color: brand ? kBrandDark : Colors.black54),
+          Icon(icon, size: 12, color: color),
           const SizedBox(width: 3),
-          Flexible(child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: brand ? kBrandDark : Colors.black54))),
+          Flexible(child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: color))),
         ]),
       );
+  }
 
   String _fmt(String iso) {
     try { return DateFormat('MMM d, h:mm a').format(DateTime.parse(iso).toLocal()); } catch (_) { return ''; }
+  }
+
+  // A one-shot reminder whose time has passed (shown red on the card).
+  bool _isOverdue(String iso) {
+    try { return DateTime.parse(iso).toLocal().isBefore(DateTime.now()); } catch (_) { return false; }
   }
 }
 

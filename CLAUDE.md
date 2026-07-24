@@ -48,6 +48,10 @@ policy, profile structure or version-display format.
   (public client config).
 
 ## Build (GitHub Actions → releases)
+> 🔴 **GOLDEN RULE — never build unless the user explicitly asks.** Do NOT
+> trigger the APK (`build-flutter-apk.yml`) or AAB (`build-play-aab.yml`)
+> workflows on your own initiative. Implement, commit and push freely, but only
+> run a build when the user asks for one ("build karo", "apk do", "aab do").
 - **APK** (testing): run `build-flutter-apk.yml` → published to the
   `flutter-latest` release.
 - **Signed AAB** (Play Store): run `build-play-aab.yml` → published to the

@@ -68,6 +68,7 @@ class OfflineStore {
         'archived': n.archived,
         'labels': n.labels,
         'reminderAt': n.reminderAt,
+        'repeat': n.repeat,
         'coverImage': n.coverImage,
         'attachmentCount': n.attachmentCount,
       };
@@ -148,6 +149,7 @@ class OfflineStore {
       archived: input['archived'] == true,
       labels: List<String>.from(input['labels'] ?? const []),
       reminderAt: input['reminderAt']?.toString(),
+      repeat: (input['repeat'] ?? 'none').toString(),
     );
     final b = note.archived ? archived : live;
     final list = await _loadBucket(b);
@@ -189,6 +191,7 @@ class OfflineStore {
         archived: p.containsKey('archived') ? p['archived'] == true : n.archived,
         labels: p.containsKey('labels') ? List<String>.from(p['labels'] ?? const []) : n.labels,
         reminderAt: p.containsKey('reminderAt') ? p['reminderAt']?.toString() : n.reminderAt,
+        repeat: p.containsKey('repeat') ? (p['repeat'] ?? 'none').toString() : n.repeat,
         coverImage: n.coverImage,
         attachmentCount: n.attachmentCount,
       );

@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tzdata;
+import 'package:flutter_timezone/flutter_timezone.dart';
 
 /// Local reminder notifications for KukKeep. Schedules an OS notification at a
 /// note's reminder time using exact alarms (falling back to inexact if the
@@ -28,6 +29,13 @@ class Notifications {
   // channel silently keeps it silent — bumping the id forces a correct one.
   static const String _channelSound = 'kukkeep_reminders_v3';
   static const String _channelSilent = 'kukkeep_reminders_silent_v3';
+
+  // Resolved device IANA timezone (e.g. "Asia/Kolkata"). Reported by diagnose().
+  // Until _initTimeZone() runs, tz.local defaults to UTC — scheduling against
+  // that makes flutter_local_notifications reinterpret the UTC wall-clock time
+  // in the device's real zone, landing the alarm hours in the past so it fires
+  // immediately (or never). We set tz.local to the real device zone in init().
+  String _localZone = 'UTC';
 
   // ── User preferences (Settings → Notifications) ──
   static const _kRemindersKey = 'kk_reminders_enabled';
@@ -73,9 +81,36 @@ class Notifications {
         category: AndroidNotificationCategory.reminder,
       );
 
+  /// Load the timezone database and point tz.local at the device's real IANA
+  /// zone. This MUST happen before any zonedSchedule call: the plugin fires
+  /// alarms based on the scheduled TZDateTime's wall-clock components reread in
+  /// the device zone, so a UTC-based schedule on a non-UTC device fires at the
+  /// wrong instant. Everything here is best-effort; on failure we stay on UTC.
+  Future<void> _initTimeZone() async {
+    try { tzdata.initializeTimeZones(); } catch (_) {}
+    try {
+      // flutter_timezone 5.x returns a TimezoneInfo (.identifier); older majors
+      // returned a plain String. Read defensively so it compiles/runs on both.
+      final dynamic info = await FlutterTimezone.getLocalTimezone();
+      String? name;
+      if (info is String) {
+        name = info;
+      } else {
+        // info is dynamic → resolved at runtime; TimezoneInfo exposes .identifier
+        try { name = info.identifier as String?; } catch (_) {}
+      }
+      if (name != null && name.isNotEmpty) {
+        tz.setLocalLocation(tz.getLocation(name));
+        _localZone = name;
+      }
+    } catch (_) {
+      // Unknown/unsupported zone — tz.local stays UTC (already the default).
+    }
+  }
+
   Future<void> init() async {
     if (_ready) return;
-    try { tzdata.initializeTimeZones(); } catch (_) {}
+    await _initTimeZone();
     try {
       const android = AndroidInitializationSettings('@mipmap/ic_launcher');
       await _plugin.initialize(const InitializationSettings(android: android));
@@ -129,6 +164,55 @@ class Notifications {
     }
   }
 
+  /// On-device diagnostic. Returns a human-readable report of exactly what
+  /// works and what fails (permission, exact-alarm capability, immediate show,
+  /// scheduled alarm), plus fires a 10s scheduled reminder. Shown in Settings
+  /// so failures are visible without a logcat.
+  Future<String> diagnose() async {
+    final b = StringBuffer();
+    try {
+      if (!_ready) await init();
+      b.writeln('Plugin ready: $_ready');
+      b.writeln('Device timezone: $_localZone');
+      b.writeln('tz.local: ${tz.local.name}');
+      final a = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      if (a == null) { b.writeln('Android impl: NULL (not Android?)'); return b.toString(); }
+      try { await a.requestNotificationsPermission(); } catch (e) { b.writeln('requestNotif err: $e'); }
+      try { await a.requestExactAlarmsPermission(); } catch (e) { b.writeln('requestExact err: $e'); }
+      b.writeln('Notifications enabled: ${await a.areNotificationsEnabled()}');
+      try { b.writeln('Can schedule EXACT alarms: ${await a.canScheduleExactNotifications()}'); }
+      catch (e) { b.writeln('canScheduleExact err: $e'); }
+      // Immediate (no AlarmManager).
+      try {
+        await _plugin.show(2147483645, 'Kuk Keep', 'Immediate test \u{1F514}', NotificationDetails(android: _androidDetails));
+        b.writeln('Immediate show: OK');
+      } catch (e) { b.writeln('Immediate show FAILED: $e'); }
+      // Scheduled 10s (the real reminder path) — report the actual exception.
+      // Schedule against tz.local (now set to the device zone) so the fire
+      // instant is correct; report it so the user can confirm it's ~10s out.
+      final when = tz.TZDateTime.now(tz.local).add(const Duration(seconds: 10));
+      b.writeln('Scheduled for: $when (now: ${tz.TZDateTime.now(tz.local)})');
+      try {
+        await _plugin.cancel(2147483644);
+        await _plugin.zonedSchedule(2147483644, 'Kuk Keep', 'Scheduled test \u{23F0} (10s)', when,
+            NotificationDetails(android: _androidDetails),
+            androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+            uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime);
+        b.writeln('Schedule EXACT 10s: OK — wait 10s');
+      } catch (e) {
+        b.writeln('Schedule EXACT FAILED: $e');
+        try {
+          await _plugin.zonedSchedule(2147483644, 'Kuk Keep', 'Scheduled test \u{23F0} (10s inexact)', when,
+              NotificationDetails(android: _androidDetails),
+              androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+              uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime);
+          b.writeln('Schedule INEXACT 10s: OK — wait 10s');
+        } catch (e2) { b.writeln('Schedule INEXACT FAILED: $e2'); }
+      }
+    } catch (e) { b.writeln('diagnose error: $e'); }
+    return b.toString();
+  }
+
   /// Immediate diagnostic notification (NOT scheduled — bypasses the alarm
   /// subsystem entirely). Returns false if the OS is blocking notifications, so
   /// the caller can send the user to system settings to enable them.
@@ -162,15 +246,34 @@ class Notifications {
     }
   }
 
+  // Maps a repeat choice to the plugin's recurrence rule. null = one-shot.
+  DateTimeComponents? _repeatComponents(String repeat) {
+    switch (repeat) {
+      case 'daily':   return DateTimeComponents.time;              // same time each day
+      case 'weekly':  return DateTimeComponents.dayOfWeekAndTime;  // same weekday + time
+      case 'monthly': return DateTimeComponents.dayOfMonthAndTime; // same day-of-month + time
+      default:        return null;                                 // 'none' → fire once
+    }
+  }
+
   // Shared scheduling core. Ignores the user's on/off pref so it can also power
-  // the "send test reminder" diagnostic.
-  Future<void> _scheduleAt(int id, String title, String body, DateTime when) async {
+  // the "send test reminder" diagnostic. `repeat` = none|daily|weekly|monthly:
+  // when recurring, the OS re-fires at each matching daily/weekly/monthly slot.
+  Future<void> _scheduleAt(int id, String title, String body, DateTime when, {String repeat = 'none'}) async {
     if (!_ready) await init();
     if (!_ready) return;
     await _plugin.cancel(id);
-    if (when.isBefore(DateTime.now())) return;
-    // TZDateTime.from preserves the absolute instant → correct real-world time.
-    final scheduled = tz.TZDateTime.from(when, tz.UTC);
+    final components = _repeatComponents(repeat);
+    // A one-shot in the past never fires — skip it. A recurring reminder whose
+    // base time is in the past is fine: the plugin advances to the next matching
+    // occurrence (e.g. a daily 9am reminder set at 10am fires tomorrow 9am).
+    if (components == null && when.isBefore(DateTime.now())) return;
+    // Express the absolute instant in the device's local zone (tz.local, set in
+    // init()). flutter_local_notifications fires based on the scheduled
+    // TZDateTime's wall-clock components in the device zone, so this must be
+    // tz.local — scheduling in tz.UTC on a non-UTC device fires at the wrong
+    // time (in the past → immediately, or dropped).
+    final scheduled = tz.TZDateTime.from(when, tz.local);
     final details = NotificationDetails(android: _androidDetails);
     Future<void> go(AndroidScheduleMode mode) => _plugin.zonedSchedule(
           id,
@@ -179,24 +282,30 @@ class Notifications {
           scheduled,
           details,
           androidScheduleMode: mode,
+          matchDateTimeComponents: components, // non-null → repeats daily/weekly/monthly
           uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
         );
-    try {
-      await go(AndroidScheduleMode.exactAllowWhileIdle); // on time, even in Doze
-    } catch (_) {
-      // Exact-alarm permission denied — an approximate reminder still beats none.
-      try {
-        await go(AndroidScheduleMode.inexactAllowWhileIdle);
-      } catch (_) {}
+    // One-shot: alarmClock = AlarmManager.setAlarmClock() — highest priority,
+    // fires in Doze, no exact-alarm special access needed. Recurring: the
+    // repeating path uses exact-allow-while-idle (the mode documented for
+    // matchDateTimeComponents; alarmClock isn't meant for recurrence). Both
+    // fall back to inexact if exact isn't permitted.
+    final modes = components == null
+        ? const [AndroidScheduleMode.alarmClock, AndroidScheduleMode.exactAllowWhileIdle, AndroidScheduleMode.inexactAllowWhileIdle]
+        : const [AndroidScheduleMode.exactAllowWhileIdle, AndroidScheduleMode.inexactAllowWhileIdle];
+    for (final m in modes) {
+      try { await go(m); return; } catch (_) {/* try the next, weaker mode */}
     }
   }
 
-  /// Schedule (or reschedule) a reminder for a note. No-op if reminders are off
-  /// or the time is in the past. The note id doubles as the notification id.
-  Future<void> schedule({required int noteId, required String title, required String body, required DateTime when}) async {
+  /// Schedule (or reschedule) a reminder for a note. No-op if reminders are off.
+  /// `repeat` = none|daily|weekly|monthly. The note id doubles as the
+  /// notification id. A one-shot in the past is skipped; a recurring one rolls
+  /// to its next occurrence.
+  Future<void> schedule({required int noteId, required String title, required String body, required DateTime when, String repeat = 'none'}) async {
     if (!_remindersEnabled) return; // user turned reminders off (Settings)
     try {
-      await _scheduleAt(noteId, title, body, when);
+      await _scheduleAt(noteId, title, body, when, repeat: repeat);
     } catch (_) {/* ignore scheduling errors */}
   }
 

@@ -48,6 +48,7 @@ class Note {
   bool archived;
   List<String> labels;
   String? reminderAt;
+  String repeat; // none | daily | weekly | monthly (reminder recurrence)
   String? coverImage; // first image attachment URL, for card thumbnails
   int attachmentCount; // total attachments on the note (for the 📎 indicator)
 
@@ -62,6 +63,7 @@ class Note {
     this.archived = false,
     this.labels = const [],
     this.reminderAt,
+    this.repeat = 'none',
     this.coverImage,
     this.attachmentCount = 0,
   });
@@ -77,6 +79,9 @@ class Note {
         archived: _asBool(j['archived']),
         labels: _parseLabels(j['labels']),
         reminderAt: j['reminderAt']?.toString(),
+        // Server returns `reminderRepeat` (drizzle prop); keep.list also aliases
+        // it to `repeat`. Accept either, default none.
+        repeat: (j['repeat'] ?? j['reminderRepeat'] ?? 'none').toString(),
         coverImage: (j['coverImage'] == null || j['coverImage'].toString().isEmpty) ? null : j['coverImage'].toString(),
         attachmentCount: (j['attachmentCount'] as num?)?.toInt() ?? 0,
       );
@@ -111,4 +116,5 @@ class Attachment {
         ocrText: j['ocrText']?.toString(),
       );
   bool get isImage => fileType.startsWith('image/');
+  bool get isAudio => fileType.startsWith('audio/'); // voice notes
 }

@@ -90,6 +90,14 @@ jobs:
           # secrets from the environment (set on the build step below).
           sed -i '0,/^android {/s//android {\n    signingConfigs {\n        create("upload") {\n            storeFile = file("upload-keystore.jks")\n            storePassword = System.getenv("KUKKEEP_STORE_PASSWORD")\n            keyAlias = System.getenv("KUKKEEP_KEY_ALIAS")\n            keyPassword = System.getenv("KUKKEEP_KEY_PASSWORD")\n        }\n    }/' "$A"
           sed -i 's/signingConfig = signingConfigs.getByName("debug")/signingConfig = signingConfigs.getByName("upload")/' "$A"
+          # Disable R8/minify for release. flutter_local_notifications stores
+          # scheduled notifications via Gson TypeToken; R8 strips the generic
+          # Signature it needs, so zonedSchedule throws "TypeToken must be
+          # created with a type argument" and NO reminder ever fires (immediate
+          # notifications are unaffected). Turning off minify/shrink fixes it
+          # reliably — obfuscation/size aren't concerns for this app.
+          sed -i 's#signingConfig = signingConfigs.getByName("upload")#signingConfig = signingConfigs.getByName("upload")\n            isMinifyEnabled = false\n            isShrinkResources = false#' "$A"
+          echo "--- minify/shrink disabled for release ---"; grep -n 'isMinifyEnabled\|isShrinkResources' "$A" || true
           grep -q 'create("upload")' "$A" || { echo "::error::signingConfigs injection failed"; sed -n '1,40p' "$A"; exit 1; }
           grep -q 'signingConfigs.getByName("upload")' "$A" || { echo "::error::release buildType not wired to the upload key"; grep -n 'signingConfig' "$A"; exit 1; }
 
@@ -113,7 +121,7 @@ jobs:
         run: |
           sed -i 's/android:label="[^"]*"/android:label="Kuk Keep"/' android/app/src/main/AndroidManifest.xml
 
-      - name: Add permissions (network, notifications, exact alarms, boot)
+      - name: Add permissions (network, notifications, exact alarms, boot, full-screen)
         run: |
           M=android/app/src/main/AndroidManifest.xml
           grep -q 'android.permission.INTERNET' "$M" || \
@@ -126,6 +134,28 @@ jobs:
             sed -i 's|<application|<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>\n    <application|' "$M"
           grep -q 'android.permission.RECEIVE_BOOT_COMPLETED' "$M" || \
             sed -i 's|<application|<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>\n    <application|' "$M"
+          grep -q 'android.permission.WAKE_LOCK' "$M" || \
+            sed -i 's|<application|<uses-permission android:name="android.permission.WAKE_LOCK"/>\n    <application|' "$M"
+          grep -q 'android.permission.USE_FULL_SCREEN_INTENT' "$M" || \
+            sed -i 's|<application|<uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>\n    <application|' "$M"
+          grep -q 'android.permission.RECORD_AUDIO' "$M" || \
+            sed -i 's|<application|<uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <application|' "$M"
+
+      - name: Register flutter_local_notifications receivers (CRITICAL — else scheduled reminders never fire)
+        # The plugin's own manifest declares ONLY the VIBRATE/POST_NOTIFICATIONS
+        # permissions — it does NOT ship the broadcast receivers. When an alarm
+        # fires, AlarmManager broadcasts to ScheduledNotificationReceiver; if
+        # that receiver isn't declared in the merged app manifest the broadcast
+        # is dropped and NO scheduled notification is ever shown (immediate
+        # show() works because it posts directly, bypassing the receiver). The
+        # plugin's own example app declares these manually — so must we.
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q 'ScheduledNotificationReceiver' "$M" || \
+            sed -i 's|</application>|    <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />\n        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />\n        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">\n            <intent-filter>\n                <action android:name="android.intent.action.BOOT_COMPLETED"/>\n                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>\n                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>\n                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>\n            </intent-filter>\n        </receiver>\n    </application>|' "$M"
+          echo "--- scheduled-notification receivers ---"
+          grep -n 'ScheduledNotificationReceiver\|ScheduledNotificationBootReceiver\|ActionBroadcastReceiver' "$M" || true
+          grep -q 'ScheduledNotificationReceiver' "$M" || { echo "::error::receiver injection failed — scheduled reminders would never fire"; sed -n '1,60p' "$M"; exit 1; }
 
       - name: Add kukkeep:// deep-link intent filter + browser queries (Google sign-in)
         run: |

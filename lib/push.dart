@@ -22,6 +22,9 @@ class Push {
       // No requestPermission() here — Notifications.init() already asks for the
       // POST_NOTIFICATIONS permission; asking twice shows back-to-back dialogs.
       try { token = await fm.getToken(); } catch (_) {}
+      // FCM rotates tokens; keep ours current so the next backend sync
+      // (Api._maybeRegisterPushToken, on the notes list load) re-registers it.
+      fm.onTokenRefresh.listen((t) { token = t; });
       await fm.subscribeToTopic(broadcastTopic);
       // Foreground messages: show them ourselves (system tray only shows them
       // automatically when the app is backgrounded).
