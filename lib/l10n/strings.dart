@@ -74,11 +74,13 @@ String tr(String key) {
       _notif[code]?[key] ??
       _repeat[code]?[key] ??
       _voice[code]?[key] ??
+      _filter[code]?[key] ??
       _t['en']?[key] ??
       _extra['en']?[key] ??
       _notif['en']?[key] ??
       _repeat['en']?[key] ??
       _voice['en']?[key] ??
+      _filter['en']?[key] ??
       key;
 }
 
@@ -594,4 +596,20 @@ const Map<String, Map<String, String>> _voice = {
   'zh': {'voice': '语音', 'recording': '录音中…', 'starting': '开始中…', 'cancel': '取消', 'stop_attach': '停止并附加', 'play': '播放', 'pause': '暂停'},
   'ja': {'voice': '音声', 'recording': '録音中…', 'starting': '開始中…', 'cancel': 'キャンセル', 'stop_attach': '停止して添付', 'play': '再生', 'pause': '一時停止'},
   'id': {'voice': 'Suara', 'recording': 'Merekam…', 'starting': 'Memulai…', 'cancel': 'Batal', 'stop_attach': 'Hentikan & lampirkan', 'play': 'Putar', 'pause': 'Jeda'},
+};
+
+// Search-filter strings (filter sheet). tr() falls back to English.
+const Map<String, Map<String, String>> _filter = {
+  'en': {'filters': 'Filters', 'clear': 'Clear', 'filter_type': 'Type', 'filter_note': 'Note', 'filter_checklist': 'Checklist', 'filter_other': 'Other', 'filter_reminder': 'Has reminder', 'filter_attachment': 'Has attachment'},
+  'hi': {'filters': 'फ़िल्टर', 'clear': 'साफ़ करें', 'filter_type': 'प्रकार', 'filter_note': 'नोट', 'filter_checklist': 'चेकलिस्ट', 'filter_other': 'अन्य', 'filter_reminder': 'रिमाइंडर वाले', 'filter_attachment': 'अटैचमेंट वाले'},
+  'bn': {'filters': 'ফিল্টার', 'clear': 'সাফ', 'filter_type': 'ধরন', 'filter_note': 'নোট', 'filter_checklist': 'চেকলিস্ট', 'filter_other': 'অন্যান্য', 'filter_reminder': 'রিমাইন্ডার আছে', 'filter_attachment': 'অ্যাটাচমেন্ট আছে'},
+  'es': {'filters': 'Filtros', 'clear': 'Borrar', 'filter_type': 'Tipo', 'filter_note': 'Nota', 'filter_checklist': 'Lista', 'filter_other': 'Otros', 'filter_reminder': 'Con recordatorio', 'filter_attachment': 'Con adjunto'},
+  'pt': {'filters': 'Filtros', 'clear': 'Limpar', 'filter_type': 'Tipo', 'filter_note': 'Nota', 'filter_checklist': 'Lista', 'filter_other': 'Outros', 'filter_reminder': 'Com lembrete', 'filter_attachment': 'Com anexo'},
+  'fr': {'filters': 'Filtres', 'clear': 'Effacer', 'filter_type': 'Type', 'filter_note': 'Note', 'filter_checklist': 'Liste', 'filter_other': 'Autres', 'filter_reminder': 'Avec rappel', 'filter_attachment': 'Avec pièce jointe'},
+  'de': {'filters': 'Filter', 'clear': 'Löschen', 'filter_type': 'Typ', 'filter_note': 'Notiz', 'filter_checklist': 'Liste', 'filter_other': 'Andere', 'filter_reminder': 'Mit Erinnerung', 'filter_attachment': 'Mit Anhang'},
+  'ru': {'filters': 'Фильтры', 'clear': 'Очистить', 'filter_type': 'Тип', 'filter_note': 'Заметка', 'filter_checklist': 'Список', 'filter_other': 'Другое', 'filter_reminder': 'С напоминанием', 'filter_attachment': 'С вложением'},
+  'ar': {'filters': 'عوامل التصفية', 'clear': 'مسح', 'filter_type': 'النوع', 'filter_note': 'ملاحظة', 'filter_checklist': 'قائمة', 'filter_other': 'أخرى', 'filter_reminder': 'بها تذكير', 'filter_attachment': 'بها مرفق'},
+  'zh': {'filters': '筛选', 'clear': '清除', 'filter_type': '类型', 'filter_note': '笔记', 'filter_checklist': '清单', 'filter_other': '其他', 'filter_reminder': '有提醒', 'filter_attachment': '有附件'},
+  'ja': {'filters': 'フィルター', 'clear': 'クリア', 'filter_type': '種類', 'filter_note': 'メモ', 'filter_checklist': 'チェックリスト', 'filter_other': 'その他', 'filter_reminder': 'リマインダーあり', 'filter_attachment': '添付あり'},
+  'id': {'filters': 'Filter', 'clear': 'Hapus', 'filter_type': 'Jenis', 'filter_note': 'Catatan', 'filter_checklist': 'Daftar', 'filter_other': 'Lainnya', 'filter_reminder': 'Ada pengingat', 'filter_attachment': 'Ada lampiran'},
 };
