@@ -78,6 +78,19 @@ Future<int> exportNotesToFile(
   String fileName = 'kukkeep-notes.md',
 }) async {
   if (notes.isEmpty) return 0;
+  final data = Uint8List.fromList(utf8.encode(notesToMarkdown(notes)));
+  await SharePlus.instance.share(ShareParams(
+    files: [XFile.fromData(data, mimeType: 'text/markdown')],
+    // XFile.fromData ignores its `name`, so force the file name here.
+    fileNameOverrides: [fileName],
+    subject: 'KukKeep notes export',
+  ));
+  return notes.length;
+}
+
+/// Render a list of notes as a single Markdown document (pure — no I/O), so the
+/// export format is unit-testable independently of the OS share sheet.
+String notesToMarkdown(List<Note> notes) {
   final b = StringBuffer()
     ..writeln('# KukKeep export')
     ..writeln()
@@ -107,12 +120,5 @@ Future<int> exportNotesToFile(
     }
     b.writeln();
   }
-  final data = Uint8List.fromList(utf8.encode(b.toString()));
-  await SharePlus.instance.share(ShareParams(
-    files: [XFile.fromData(data, mimeType: 'text/markdown')],
-    // XFile.fromData ignores its `name`, so force the file name here.
-    fileNameOverrides: [fileName],
-    subject: 'KukKeep notes export',
-  ));
-  return notes.length;
+  return b.toString();
 }
