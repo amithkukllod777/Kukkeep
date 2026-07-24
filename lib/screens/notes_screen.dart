@@ -91,7 +91,9 @@ class _NotesScreenState extends State<NotesScreen> {
       // whichever view was on screen).
       final archived = await Api.instance.notes(archived: true);
       List<Note> display;
-      if (_isArchive) {
+      if (_view == 'shared') {
+        display = await Api.instance.sharedWithMe();
+      } else if (_isArchive) {
         display = archived;
       } else if (_isTrash) {
         display = await Api.instance.notes(trashed: true);
@@ -196,7 +198,7 @@ class _NotesScreenState extends State<NotesScreen> {
     // A non-empty search spans the whole live+archived corpus regardless of
     // which view is open (BUG-003) — Trash stays separately scoped, matching
     // the convention that deleted items don't surface in general search.
-    var list = (q.isNotEmpty && !_isTrash) ? [..._liveNotes, ..._archivedNotes] : _notes;
+    var list = (q.isNotEmpty && !_isTrash && _view != 'shared') ? [..._liveNotes, ..._archivedNotes] : _notes;
     if (_view == 'reminders') {
       list = list.where((n) => n.reminderAt != null).toList();
       // Soonest reminder first (ISO-8601 UTC strings sort chronologically).
@@ -220,8 +222,10 @@ class _NotesScreenState extends State<NotesScreen> {
   Future<void> _openEditor([Note? note]) async {
     if (_isTrash) return; // trashed notes aren't editable
     if (_selecting && note != null) { _toggleSelect(note.id); return; }
+    // A note shared with me that I can't edit opens read-only.
+    final readOnly = note != null && note.shared && !note.canEdit;
     final changed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => NoteEditorScreen(note: note)));
+      MaterialPageRoute(builder: (_) => NoteEditorScreen(note: note, readOnly: readOnly)));
     if (changed == true) _load();
   }
 
@@ -379,6 +383,7 @@ class _NotesScreenState extends State<NotesScreen> {
       case 'reminders': return 'Reminders';
       case 'archive': return 'Archive';
       case 'trash': return 'Trash';
+      case 'shared': return tr('shared_with_me');
       case 'label': return _activeLabel ?? 'Label';
       default: return 'Kuk Keep';
     }
@@ -474,7 +479,7 @@ class _NotesScreenState extends State<NotesScreen> {
           ),
         ),
       ),
-      floatingActionButton: (_isTrash || _isArchive) ? null : FloatingActionButton.extended(
+      floatingActionButton: (_isTrash || _isArchive || _view == 'shared') ? null : FloatingActionButton.extended(
         backgroundColor: kBrand,
         foregroundColor: Colors.white,
         onPressed: _newNote,
@@ -555,6 +560,7 @@ class _NotesScreenState extends State<NotesScreen> {
             ),
             _drawerTile('notes', 'Notes', Icons.lightbulb_outline),
             _drawerTile('reminders', 'Reminders', Icons.notifications_none),
+            _drawerTile('shared', tr('shared_with_me'), Icons.group_outlined),
             ListTile(
               leading: const Icon(Icons.auto_awesome),
               title: const Text('AI Memory'),

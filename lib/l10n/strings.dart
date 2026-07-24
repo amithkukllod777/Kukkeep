@@ -77,6 +77,7 @@ String tr(String key) {
       _filter[code]?[key] ??
       _share[code]?[key] ??
       _history[code]?[key] ??
+      _collab[code]?[key] ??
       _t['en']?[key] ??
       _extra['en']?[key] ??
       _notif['en']?[key] ??
@@ -85,6 +86,7 @@ String tr(String key) {
       _filter['en']?[key] ??
       _share['en']?[key] ??
       _history['en']?[key] ??
+      _collab['en']?[key] ??
       key;
 }
 
@@ -648,4 +650,20 @@ const Map<String, Map<String, String>> _history = {
   'zh': {'version_history': '版本历史', 'restore': '恢复', 'no_versions': '暂无历史版本', 'restore_version_q': '恢复此版本？', 'restore_version_sub': '当前笔记会先保存为一个版本，以便你撤销。', 'version_restored': '已恢复版本'},
   'ja': {'version_history': 'バージョン履歴', 'restore': '復元', 'no_versions': '以前のバージョンはまだありません', 'restore_version_q': 'このバージョンを復元しますか？', 'restore_version_sub': '現在のメモは先にバージョンとして保存されるため、元に戻せます。', 'version_restored': 'バージョンを復元しました'},
   'id': {'version_history': 'Riwayat versi', 'restore': 'Pulihkan', 'no_versions': 'Belum ada versi sebelumnya', 'restore_version_q': 'Pulihkan versi ini?', 'restore_version_sub': 'Catatan saat ini disimpan sebagai versi dulu, jadi Anda bisa membatalkannya.', 'version_restored': 'Versi dipulihkan'},
+};
+
+// Collaboration strings. tr() falls back to English.
+const Map<String, Map<String, String>> _collab = {
+  'en': {'collaborators': 'Collaborators', 'shared_with_me': 'Shared with me', 'add_by_email': 'Add by email', 'can_edit': 'Can edit', 'view_only': 'View only', 'add': 'Add', 'no_collaborators': 'No collaborators yet', 'remove': 'Remove', 'shared_by': 'shared by'},
+  'hi': {'collaborators': 'सहयोगी', 'shared_with_me': 'मेरे साथ साझा', 'add_by_email': 'ईमेल से जोड़ें', 'can_edit': 'संपादित कर सकते हैं', 'view_only': 'केवल देखें', 'add': 'जोड़ें', 'no_collaborators': 'अभी कोई सहयोगी नहीं', 'remove': 'हटाएँ', 'shared_by': 'द्वारा साझा'},
+  'bn': {'collaborators': 'সহযোগী', 'shared_with_me': 'আমার সাথে শেয়ার করা', 'add_by_email': 'ইমেল দিয়ে যোগ করুন', 'can_edit': 'সম্পাদনা করতে পারে', 'view_only': 'শুধু দেখা', 'add': 'যোগ করুন', 'no_collaborators': 'এখনও কোনো সহযোগী নেই', 'remove': 'সরান', 'shared_by': 'শেয়ার করেছেন'},
+  'es': {'collaborators': 'Colaboradores', 'shared_with_me': 'Compartido conmigo', 'add_by_email': 'Añadir por correo', 'can_edit': 'Puede editar', 'view_only': 'Solo lectura', 'add': 'Añadir', 'no_collaborators': 'Aún no hay colaboradores', 'remove': 'Quitar', 'shared_by': 'compartido por'},
+  'pt': {'collaborators': 'Colaboradores', 'shared_with_me': 'Compartilhado comigo', 'add_by_email': 'Adicionar por e-mail', 'can_edit': 'Pode editar', 'view_only': 'Somente leitura', 'add': 'Adicionar', 'no_collaborators': 'Ainda sem colaboradores', 'remove': 'Remover', 'shared_by': 'compartilhado por'},
+  'fr': {'collaborators': 'Collaborateurs', 'shared_with_me': 'Partagé avec moi', 'add_by_email': 'Ajouter par e-mail', 'can_edit': 'Peut modifier', 'view_only': 'Lecture seule', 'add': 'Ajouter', 'no_collaborators': 'Aucun collaborateur', 'remove': 'Retirer', 'shared_by': 'partagé par'},
+  'de': {'collaborators': 'Mitbearbeiter', 'shared_with_me': 'Mit mir geteilt', 'add_by_email': 'Per E-Mail hinzufügen', 'can_edit': 'Kann bearbeiten', 'view_only': 'Nur ansehen', 'add': 'Hinzufügen', 'no_collaborators': 'Noch keine Mitbearbeiter', 'remove': 'Entfernen', 'shared_by': 'geteilt von'},
+  'ru': {'collaborators': 'Соавторы', 'shared_with_me': 'Доступные мне', 'add_by_email': 'Добавить по эл. почте', 'can_edit': 'Может редактировать', 'view_only': 'Только просмотр', 'add': 'Добавить', 'no_collaborators': 'Пока нет соавторов', 'remove': 'Удалить', 'shared_by': 'поделился'},
+  'ar': {'collaborators': 'المتعاونون', 'shared_with_me': 'تمت مشاركتها معي', 'add_by_email': 'إضافة بالبريد', 'can_edit': 'يمكنه التعديل', 'view_only': 'عرض فقط', 'add': 'إضافة', 'no_collaborators': 'لا متعاونون بعد', 'remove': 'إزالة', 'shared_by': 'شاركها'},
+  'zh': {'collaborators': '协作者', 'shared_with_me': '与我共享', 'add_by_email': '按邮箱添加', 'can_edit': '可编辑', 'view_only': '仅查看', 'add': '添加', 'no_collaborators': '暂无协作者', 'remove': '移除', 'shared_by': '共享者'},
+  'ja': {'collaborators': '共同編集者', 'shared_with_me': '共有アイテム', 'add_by_email': 'メールで追加', 'can_edit': '編集可能', 'view_only': '閲覧のみ', 'add': '追加', 'no_collaborators': 'まだ共同編集者はいません', 'remove': '削除', 'shared_by': '共有者'},
+  'id': {'collaborators': 'Kolaborator', 'shared_with_me': 'Dibagikan ke saya', 'add_by_email': 'Tambah lewat email', 'can_edit': 'Bisa mengedit', 'view_only': 'Hanya lihat', 'add': 'Tambah', 'no_collaborators': 'Belum ada kolaborator', 'remove': 'Hapus', 'shared_by': 'dibagikan oleh'},
 };
