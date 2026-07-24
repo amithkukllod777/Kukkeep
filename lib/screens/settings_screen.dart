@@ -11,6 +11,7 @@ import '../main.dart';
 import '../models.dart';
 import '../notifications.dart';
 import '../note_colors.dart';
+import '../share_export.dart';
 import 'auth_screen.dart';
 import 'notes_screen.dart';
 
@@ -22,6 +23,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _exporting = false;
+  bool _exportingNotes = false;
   bool _switchingWorkspace = false;
 
   Future<void> _logout() async {
@@ -171,6 +173,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  // Export all of the user's notes (live + archived) to a Markdown file and
+  // open the OS share sheet so they can save it to Drive/Files or send it on.
+  Future<void> _exportNotes() async {
+    setState(() => _exportingNotes = true);
+    try {
+      final live = await Api.instance.notes();
+      final archived = await Api.instance.notes(archived: true);
+      final all = [...live, ...archived];
+      final count = await exportNotesToFile(all);
+      if (mounted && count == 0) _snack(tr('nothing_to_export'));
+    } catch (e) {
+      _snack(friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _exportingNotes = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -270,6 +289,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: Text(tr('export_data')),
               subtitle: Text(tr('export_data_sub')),
               onTap: _exporting ? null : _exportData,
+            ),
+            ListTile(
+              leading: _exportingNotes
+                  ? const SizedBox(width: 22, height: 22, child: Padding(padding: EdgeInsets.all(2), child: CircularProgressIndicator(strokeWidth: 2, color: kBrand)))
+                  : const Icon(Icons.ios_share, color: kBrand),
+              title: Text(tr('export_notes')),
+              subtitle: Text(tr('export_notes_sub')),
+              onTap: _exportingNotes ? null : _exportNotes,
             ),
             ListTile(
               leading: const Icon(Icons.description_outlined, color: kBrand),

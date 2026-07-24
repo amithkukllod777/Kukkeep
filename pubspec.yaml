@@ -1,7 +1,7 @@
 name: kukkeep
 description: KukKeep — native notes, checklists & reminders (Flutter). Connects to your KukLabs account.
 publish_to: 'none'
-version: 2.6.1+51
+version: 2.6.4+54
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -34,6 +34,7 @@ dependencies:
   app_settings: ^8.0.3                   # jump to system notification / battery-optimization settings (8.x targets compileSdk 34+)
   record: ">=5.2.0 <8.0.0"              # voice notes: record audio (mic → m4a); range lets pub pick the newest AGP-9-compatible build
   audioplayers: ^6.0.0                   # voice notes: play back audio attachments
+  share_plus: ^11.0.0                    # share a note's text to other apps + export notes to a file (Keep parity)
 
 dev_dependencies:
   flutter_test:

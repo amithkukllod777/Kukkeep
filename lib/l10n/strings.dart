@@ -74,11 +74,17 @@ String tr(String key) {
       _notif[code]?[key] ??
       _repeat[code]?[key] ??
       _voice[code]?[key] ??
+      _filter[code]?[key] ??
+      _share[code]?[key] ??
+      _history[code]?[key] ??
       _t['en']?[key] ??
       _extra['en']?[key] ??
       _notif['en']?[key] ??
       _repeat['en']?[key] ??
       _voice['en']?[key] ??
+      _filter['en']?[key] ??
+      _share['en']?[key] ??
+      _history['en']?[key] ??
       key;
 }
 
@@ -594,4 +600,52 @@ const Map<String, Map<String, String>> _voice = {
   'zh': {'voice': '语音', 'recording': '录音中…', 'starting': '开始中…', 'cancel': '取消', 'stop_attach': '停止并附加', 'play': '播放', 'pause': '暂停'},
   'ja': {'voice': '音声', 'recording': '録音中…', 'starting': '開始中…', 'cancel': 'キャンセル', 'stop_attach': '停止して添付', 'play': '再生', 'pause': '一時停止'},
   'id': {'voice': 'Suara', 'recording': 'Merekam…', 'starting': 'Memulai…', 'cancel': 'Batal', 'stop_attach': 'Hentikan & lampirkan', 'play': 'Putar', 'pause': 'Jeda'},
+};
+
+// Search-filter strings (filter sheet). tr() falls back to English.
+const Map<String, Map<String, String>> _filter = {
+  'en': {'filters': 'Filters', 'clear': 'Clear', 'filter_type': 'Type', 'filter_note': 'Note', 'filter_checklist': 'Checklist', 'filter_other': 'Other', 'filter_reminder': 'Has reminder', 'filter_attachment': 'Has attachment'},
+  'hi': {'filters': 'फ़िल्टर', 'clear': 'साफ़ करें', 'filter_type': 'प्रकार', 'filter_note': 'नोट', 'filter_checklist': 'चेकलिस्ट', 'filter_other': 'अन्य', 'filter_reminder': 'रिमाइंडर वाले', 'filter_attachment': 'अटैचमेंट वाले'},
+  'bn': {'filters': 'ফিল্টার', 'clear': 'সাফ', 'filter_type': 'ধরন', 'filter_note': 'নোট', 'filter_checklist': 'চেকলিস্ট', 'filter_other': 'অন্যান্য', 'filter_reminder': 'রিমাইন্ডার আছে', 'filter_attachment': 'অ্যাটাচমেন্ট আছে'},
+  'es': {'filters': 'Filtros', 'clear': 'Borrar', 'filter_type': 'Tipo', 'filter_note': 'Nota', 'filter_checklist': 'Lista', 'filter_other': 'Otros', 'filter_reminder': 'Con recordatorio', 'filter_attachment': 'Con adjunto'},
+  'pt': {'filters': 'Filtros', 'clear': 'Limpar', 'filter_type': 'Tipo', 'filter_note': 'Nota', 'filter_checklist': 'Lista', 'filter_other': 'Outros', 'filter_reminder': 'Com lembrete', 'filter_attachment': 'Com anexo'},
+  'fr': {'filters': 'Filtres', 'clear': 'Effacer', 'filter_type': 'Type', 'filter_note': 'Note', 'filter_checklist': 'Liste', 'filter_other': 'Autres', 'filter_reminder': 'Avec rappel', 'filter_attachment': 'Avec pièce jointe'},
+  'de': {'filters': 'Filter', 'clear': 'Löschen', 'filter_type': 'Typ', 'filter_note': 'Notiz', 'filter_checklist': 'Liste', 'filter_other': 'Andere', 'filter_reminder': 'Mit Erinnerung', 'filter_attachment': 'Mit Anhang'},
+  'ru': {'filters': 'Фильтры', 'clear': 'Очистить', 'filter_type': 'Тип', 'filter_note': 'Заметка', 'filter_checklist': 'Список', 'filter_other': 'Другое', 'filter_reminder': 'С напоминанием', 'filter_attachment': 'С вложением'},
+  'ar': {'filters': 'عوامل التصفية', 'clear': 'مسح', 'filter_type': 'النوع', 'filter_note': 'ملاحظة', 'filter_checklist': 'قائمة', 'filter_other': 'أخرى', 'filter_reminder': 'بها تذكير', 'filter_attachment': 'بها مرفق'},
+  'zh': {'filters': '筛选', 'clear': '清除', 'filter_type': '类型', 'filter_note': '笔记', 'filter_checklist': '清单', 'filter_other': '其他', 'filter_reminder': '有提醒', 'filter_attachment': '有附件'},
+  'ja': {'filters': 'フィルター', 'clear': 'クリア', 'filter_type': '種類', 'filter_note': 'メモ', 'filter_checklist': 'チェックリスト', 'filter_other': 'その他', 'filter_reminder': 'リマインダーあり', 'filter_attachment': '添付あり'},
+  'id': {'filters': 'Filter', 'clear': 'Hapus', 'filter_type': 'Jenis', 'filter_note': 'Catatan', 'filter_checklist': 'Daftar', 'filter_other': 'Lainnya', 'filter_reminder': 'Ada pengingat', 'filter_attachment': 'Ada lampiran'},
+};
+
+// Share + export strings. tr() falls back to English.
+const Map<String, Map<String, String>> _share = {
+  'en': {'share': 'Share', 'export_notes': 'Export notes', 'export_notes_sub': 'Save all your notes as a file', 'nothing_to_export': 'No notes to export'},
+  'hi': {'share': 'साझा करें', 'export_notes': 'नोट्स निर्यात करें', 'export_notes_sub': 'अपने सभी नोट्स को फ़ाइल के रूप में सहेजें', 'nothing_to_export': 'निर्यात करने के लिए कोई नोट नहीं'},
+  'bn': {'share': 'শেয়ার', 'export_notes': 'নোট রপ্তানি', 'export_notes_sub': 'আপনার সব নোট ফাইল হিসেবে সংরক্ষণ করুন', 'nothing_to_export': 'রপ্তানি করার মতো কোনো নোট নেই'},
+  'es': {'share': 'Compartir', 'export_notes': 'Exportar notas', 'export_notes_sub': 'Guarda todas tus notas como un archivo', 'nothing_to_export': 'No hay notas para exportar'},
+  'pt': {'share': 'Compartilhar', 'export_notes': 'Exportar notas', 'export_notes_sub': 'Salve todas as suas notas como um arquivo', 'nothing_to_export': 'Nenhuma nota para exportar'},
+  'fr': {'share': 'Partager', 'export_notes': 'Exporter les notes', 'export_notes_sub': 'Enregistrez toutes vos notes dans un fichier', 'nothing_to_export': 'Aucune note à exporter'},
+  'de': {'share': 'Teilen', 'export_notes': 'Notizen exportieren', 'export_notes_sub': 'Alle Notizen als Datei speichern', 'nothing_to_export': 'Keine Notizen zum Exportieren'},
+  'ru': {'share': 'Поделиться', 'export_notes': 'Экспорт заметок', 'export_notes_sub': 'Сохранить все заметки в файл', 'nothing_to_export': 'Нет заметок для экспорта'},
+  'ar': {'share': 'مشاركة', 'export_notes': 'تصدير الملاحظات', 'export_notes_sub': 'احفظ جميع ملاحظاتك كملف', 'nothing_to_export': 'لا توجد ملاحظات للتصدير'},
+  'zh': {'share': '分享', 'export_notes': '导出笔记', 'export_notes_sub': '将所有笔记保存为文件', 'nothing_to_export': '没有可导出的笔记'},
+  'ja': {'share': '共有', 'export_notes': 'メモをエクスポート', 'export_notes_sub': 'すべてのメモをファイルとして保存', 'nothing_to_export': 'エクスポートするメモがありません'},
+  'id': {'share': 'Bagikan', 'export_notes': 'Ekspor catatan', 'export_notes_sub': 'Simpan semua catatan sebagai file', 'nothing_to_export': 'Tidak ada catatan untuk diekspor'},
+};
+
+// Version-history strings. tr() falls back to English.
+const Map<String, Map<String, String>> _history = {
+  'en': {'version_history': 'Version history', 'restore': 'Restore', 'no_versions': 'No earlier versions yet', 'restore_version_q': 'Restore this version?', 'restore_version_sub': 'The current note is saved as a version first, so you can undo this.', 'version_restored': 'Version restored'},
+  'hi': {'version_history': 'संस्करण इतिहास', 'restore': 'पुनर्स्थापित करें', 'no_versions': 'अभी कोई पुराना संस्करण नहीं', 'restore_version_q': 'यह संस्करण पुनर्स्थापित करें?', 'restore_version_sub': 'मौजूदा नोट पहले एक संस्करण के रूप में सहेजा जाता है, ताकि आप इसे पूर्ववत कर सकें।', 'version_restored': 'संस्करण पुनर्स्थापित हुआ'},
+  'bn': {'version_history': 'সংস্করণ ইতিহাস', 'restore': 'পুনরুদ্ধার', 'no_versions': 'এখনও কোনো পুরনো সংস্করণ নেই', 'restore_version_q': 'এই সংস্করণ পুনরুদ্ধার করবেন?', 'restore_version_sub': 'বর্তমান নোটটি প্রথমে একটি সংস্করণ হিসেবে সংরক্ষিত হয়, তাই আপনি এটি পূর্বাবস্থায় ফেরাতে পারেন।', 'version_restored': 'সংস্করণ পুনরুদ্ধার হয়েছে'},
+  'es': {'version_history': 'Historial de versiones', 'restore': 'Restaurar', 'no_versions': 'Aún no hay versiones anteriores', 'restore_version_q': '¿Restaurar esta versión?', 'restore_version_sub': 'La nota actual se guarda primero como versión, para que puedas deshacerlo.', 'version_restored': 'Versión restaurada'},
+  'pt': {'version_history': 'Histórico de versões', 'restore': 'Restaurar', 'no_versions': 'Ainda não há versões anteriores', 'restore_version_q': 'Restaurar esta versão?', 'restore_version_sub': 'A nota atual é salva primeiro como versão, para que você possa desfazer.', 'version_restored': 'Versão restaurada'},
+  'fr': {'version_history': 'Historique des versions', 'restore': 'Restaurer', 'no_versions': 'Aucune version antérieure', 'restore_version_q': 'Restaurer cette version ?', 'restore_version_sub': 'La note actuelle est d’abord enregistrée comme version, pour que vous puissiez annuler.', 'version_restored': 'Version restaurée'},
+  'de': {'version_history': 'Versionsverlauf', 'restore': 'Wiederherstellen', 'no_versions': 'Noch keine früheren Versionen', 'restore_version_q': 'Diese Version wiederherstellen?', 'restore_version_sub': 'Die aktuelle Notiz wird zuerst als Version gespeichert, damit du dies rückgängig machen kannst.', 'version_restored': 'Version wiederhergestellt'},
+  'ru': {'version_history': 'История версий', 'restore': 'Восстановить', 'no_versions': 'Пока нет прежних версий', 'restore_version_q': 'Восстановить эту версию?', 'restore_version_sub': 'Текущая заметка сначала сохраняется как версия, чтобы это можно было отменить.', 'version_restored': 'Версия восстановлена'},
+  'ar': {'version_history': 'سجل الإصدارات', 'restore': 'استعادة', 'no_versions': 'لا توجد إصدارات سابقة بعد', 'restore_version_q': 'استعادة هذا الإصدار؟', 'restore_version_sub': 'يتم حفظ الملاحظة الحالية كإصدار أولاً، حتى تتمكن من التراجع.', 'version_restored': 'تمت استعادة الإصدار'},
+  'zh': {'version_history': '版本历史', 'restore': '恢复', 'no_versions': '暂无历史版本', 'restore_version_q': '恢复此版本？', 'restore_version_sub': '当前笔记会先保存为一个版本，以便你撤销。', 'version_restored': '已恢复版本'},
+  'ja': {'version_history': 'バージョン履歴', 'restore': '復元', 'no_versions': '以前のバージョンはまだありません', 'restore_version_q': 'このバージョンを復元しますか？', 'restore_version_sub': '現在のメモは先にバージョンとして保存されるため、元に戻せます。', 'version_restored': 'バージョンを復元しました'},
+  'id': {'version_history': 'Riwayat versi', 'restore': 'Pulihkan', 'no_versions': 'Belum ada versi sebelumnya', 'restore_version_q': 'Pulihkan versi ini?', 'restore_version_sub': 'Catatan saat ini disimpan sebagai versi dulu, jadi Anda bisa membatalkannya.', 'version_restored': 'Versi dipulihkan'},
 };

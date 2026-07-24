@@ -118,3 +118,42 @@ class Attachment {
   bool get isImage => fileType.startsWith('image/');
   bool get isAudio => fileType.startsWith('audio/'); // voice notes
 }
+
+/// A past snapshot of a note's content (Google-Keep-style version history).
+class NoteVersion {
+  final int id;
+  final String title;
+  final String body;
+  final String type; // note | checklist
+  final List<ChecklistItem> items;
+  final DateTime? createdAt; // when this version was superseded
+  NoteVersion({
+    required this.id,
+    this.title = '',
+    this.body = '',
+    this.type = 'note',
+    this.items = const [],
+    this.createdAt,
+  });
+  factory NoteVersion.fromJson(Map<String, dynamic> j) => NoteVersion(
+        id: (j['id'] as num).toInt(),
+        title: (j['title'] ?? '').toString(),
+        body: (j['body'] ?? '').toString(),
+        type: (j['type'] ?? 'note').toString(),
+        items: _parseItems(j['items']),
+        createdAt: j['createdAt'] != null
+            ? DateTime.tryParse(j['createdAt'].toString())?.toLocal()
+            : null,
+      );
+
+  /// One-line preview for the history list.
+  String get preview {
+    if (type == 'checklist') {
+      final done = items.where((i) => i.done).length;
+      final texts = items.where((i) => i.text.trim().isNotEmpty).map((i) => i.text.trim());
+      return '✓ $done/${items.length} · ${texts.take(3).join(', ')}';
+    }
+    final t = body.trim().isNotEmpty ? body.trim() : title.trim();
+    return t.replaceAll('\n', ' ');
+  }
+}
