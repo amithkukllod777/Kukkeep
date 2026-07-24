@@ -75,12 +75,14 @@ String tr(String key) {
       _repeat[code]?[key] ??
       _voice[code]?[key] ??
       _filter[code]?[key] ??
+      _share[code]?[key] ??
       _t['en']?[key] ??
       _extra['en']?[key] ??
       _notif['en']?[key] ??
       _repeat['en']?[key] ??
       _voice['en']?[key] ??
       _filter['en']?[key] ??
+      _share['en']?[key] ??
       key;
 }
 
@@ -612,4 +614,20 @@ const Map<String, Map<String, String>> _filter = {
   'zh': {'filters': '筛选', 'clear': '清除', 'filter_type': '类型', 'filter_note': '笔记', 'filter_checklist': '清单', 'filter_other': '其他', 'filter_reminder': '有提醒', 'filter_attachment': '有附件'},
   'ja': {'filters': 'フィルター', 'clear': 'クリア', 'filter_type': '種類', 'filter_note': 'メモ', 'filter_checklist': 'チェックリスト', 'filter_other': 'その他', 'filter_reminder': 'リマインダーあり', 'filter_attachment': '添付あり'},
   'id': {'filters': 'Filter', 'clear': 'Hapus', 'filter_type': 'Jenis', 'filter_note': 'Catatan', 'filter_checklist': 'Daftar', 'filter_other': 'Lainnya', 'filter_reminder': 'Ada pengingat', 'filter_attachment': 'Ada lampiran'},
+};
+
+// Share + export strings. tr() falls back to English.
+const Map<String, Map<String, String>> _share = {
+  'en': {'share': 'Share', 'export_notes': 'Export notes', 'export_notes_sub': 'Save all your notes as a file', 'nothing_to_export': 'No notes to export'},
+  'hi': {'share': 'साझा करें', 'export_notes': 'नोट्स निर्यात करें', 'export_notes_sub': 'अपने सभी नोट्स को फ़ाइल के रूप में सहेजें', 'nothing_to_export': 'निर्यात करने के लिए कोई नोट नहीं'},
+  'bn': {'share': 'শেয়ার', 'export_notes': 'নোট রপ্তানি', 'export_notes_sub': 'আপনার সব নোট ফাইল হিসেবে সংরক্ষণ করুন', 'nothing_to_export': 'রপ্তানি করার মতো কোনো নোট নেই'},
+  'es': {'share': 'Compartir', 'export_notes': 'Exportar notas', 'export_notes_sub': 'Guarda todas tus notas como un archivo', 'nothing_to_export': 'No hay notas para exportar'},
+  'pt': {'share': 'Compartilhar', 'export_notes': 'Exportar notas', 'export_notes_sub': 'Salve todas as suas notas como um arquivo', 'nothing_to_export': 'Nenhuma nota para exportar'},
+  'fr': {'share': 'Partager', 'export_notes': 'Exporter les notes', 'export_notes_sub': 'Enregistrez toutes vos notes dans un fichier', 'nothing_to_export': 'Aucune note à exporter'},
+  'de': {'share': 'Teilen', 'export_notes': 'Notizen exportieren', 'export_notes_sub': 'Alle Notizen als Datei speichern', 'nothing_to_export': 'Keine Notizen zum Exportieren'},
+  'ru': {'share': 'Поделиться', 'export_notes': 'Экспорт заметок', 'export_notes_sub': 'Сохранить все заметки в файл', 'nothing_to_export': 'Нет заметок для экспорта'},
+  'ar': {'share': 'مشاركة', 'export_notes': 'تصدير الملاحظات', 'export_notes_sub': 'احفظ جميع ملاحظاتك كملف', 'nothing_to_export': 'لا توجد ملاحظات للتصدير'},
+  'zh': {'share': '分享', 'export_notes': '导出笔记', 'export_notes_sub': '将所有笔记保存为文件', 'nothing_to_export': '没有可导出的笔记'},
+  'ja': {'share': '共有', 'export_notes': 'メモをエクスポート', 'export_notes_sub': 'すべてのメモをファイルとして保存', 'nothing_to_export': 'エクスポートするメモがありません'},
+  'id': {'share': 'Bagikan', 'export_notes': 'Ekspor catatan', 'export_notes_sub': 'Simpan semua catatan sebagai file', 'nothing_to_export': 'Tidak ada catatan untuk diekspor'},
 };
