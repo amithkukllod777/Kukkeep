@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api.dart';
 import '../auth_messages.dart';
@@ -54,17 +56,51 @@ class _NotesScreenState extends State<NotesScreen> {
   bool get _isTrash => _view == 'trash';
   bool get _isArchive => _view == 'archive';
 
+  StreamSubscription<List<SharedMediaFile>>? _shareSub;
+
   @override
   void initState() {
     super.initState();
     _restoreLayoutPref();
     _load();
+    _initShareReceiver();
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _shareSub?.cancel();
     super.dispose();
+  }
+
+  // Receive text / URLs shared FROM other apps into a new note (Keep parity).
+  // Handles both a cold start (getInitialMedia) and while the app is running
+  // (getMediaStream). Best-effort — never blocks or crashes the notes list.
+  void _initShareReceiver() {
+    try {
+      _shareSub = ReceiveSharingIntent.instance.getMediaStream().listen(
+        _handleShared,
+        onError: (_) {},
+      );
+      ReceiveSharingIntent.instance.getInitialMedia().then((files) {
+        _handleShared(files);
+        ReceiveSharingIntent.instance.reset(); // don't re-handle on next resume
+      }).catchError((_) {});
+    } catch (_) {/* plugin unavailable (e.g. tests) — ignore */}
+  }
+
+  Future<void> _handleShared(List<SharedMediaFile> files) async {
+    if (files.isEmpty || !mounted) return;
+    // Phase 1: text + URLs. Each text/url item carries its content in `.path`.
+    final text = files
+        .where((f) => f.type == SharedMediaType.text || f.type == SharedMediaType.url)
+        .map((f) => f.path.trim())
+        .where((s) => s.isNotEmpty)
+        .join('\n');
+    if (text.isEmpty) return;
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => NoteEditorScreen(initialText: text)));
+    if (changed == true) _load();
   }
 
   // Remember the grid/list choice across launches (like Google Keep).

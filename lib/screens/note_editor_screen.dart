@@ -23,7 +23,9 @@ class NoteEditorScreen extends StatefulWidget {
   final NoteTemplate? template;
   /// View-only mode (a note shared with me that I may not edit).
   final bool readOnly;
-  const NoteEditorScreen({super.key, this.note, this.template, this.readOnly = false});
+  /// Seed body text for a brand-new note (e.g. content shared from another app).
+  final String? initialText;
+  const NoteEditorScreen({super.key, this.note, this.template, this.readOnly = false, this.initialText});
   @override
   State<NoteEditorScreen> createState() => _NoteEditorScreenState();
 }
@@ -74,8 +76,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
     // Seed a brand-new note from a chosen template (blank template = empty note).
     final t = n == null ? widget.template : null;
     _noteId = n?.id;
+    // Content shared from another app seeds a brand-new note's body.
+    final shared = (n == null && t == null) ? widget.initialText : null;
     _title = TextEditingController(text: n?.title ?? t?.title ?? '');
-    _body = TextEditingController(text: n?.body ?? t?.body ?? '');
+    _body = TextEditingController(text: n?.body ?? t?.body ?? shared ?? '');
     _type = n?.type ?? t?.type ?? 'note';
     _items = n != null && n.items.isNotEmpty
         ? n.items.map((e) => ChecklistItem(text: e.text, done: e.done)).toList()
@@ -95,9 +99,12 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
     _repeat = n?.repeat ?? 'none';
     _buildItemControllers();
     _initialSnapshot = _snapshot();
-    // A template-seeded note should persist even if the user backs out without
-    // further typing (BUG-005's untouched-note skip is only for empty new notes).
-    if (t != null && !t.isBlank) _initialSnapshot = 'template-seed-sentinel';
+    // A template- or share-seeded note should persist even if the user backs
+    // out without further typing (BUG-005's untouched-note skip is only for
+    // empty new notes).
+    if ((t != null && !t.isBlank) || (shared != null && shared.trim().isNotEmpty)) {
+      _initialSnapshot = 'template-seed-sentinel';
+    }
     if (!_isNew) _loadAttachments();
   }
 
