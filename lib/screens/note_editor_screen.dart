@@ -21,7 +21,11 @@ class NoteEditorScreen extends StatefulWidget {
   final Note? note;
   /// Seed content for a brand-new note (ignored when [note] is non-null).
   final NoteTemplate? template;
-  const NoteEditorScreen({super.key, this.note, this.template});
+  /// View-only mode (a note shared with me that I may not edit).
+  final bool readOnly;
+  /// Seed body text for a brand-new note (e.g. content shared from another app).
+  final String? initialText;
+  const NoteEditorScreen({super.key, this.note, this.template, this.readOnly = false, this.initialText});
   @override
   State<NoteEditorScreen> createState() => _NoteEditorScreenState();
 }
@@ -72,8 +76,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
     // Seed a brand-new note from a chosen template (blank template = empty note).
     final t = n == null ? widget.template : null;
     _noteId = n?.id;
+    // Content shared from another app seeds a brand-new note's body.
+    final shared = (n == null && t == null) ? widget.initialText : null;
     _title = TextEditingController(text: n?.title ?? t?.title ?? '');
-    _body = TextEditingController(text: n?.body ?? t?.body ?? '');
+    _body = TextEditingController(text: n?.body ?? t?.body ?? shared ?? '');
     _type = n?.type ?? t?.type ?? 'note';
     _items = n != null && n.items.isNotEmpty
         ? n.items.map((e) => ChecklistItem(text: e.text, done: e.done)).toList()
@@ -93,9 +99,12 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
     _repeat = n?.repeat ?? 'none';
     _buildItemControllers();
     _initialSnapshot = _snapshot();
-    // A template-seeded note should persist even if the user backs out without
-    // further typing (BUG-005's untouched-note skip is only for empty new notes).
-    if (t != null && !t.isBlank) _initialSnapshot = 'template-seed-sentinel';
+    // A template- or share-seeded note should persist even if the user backs
+    // out without further typing (BUG-005's untouched-note skip is only for
+    // empty new notes).
+    if ((t != null && !t.isBlank) || (shared != null && shared.trim().isNotEmpty)) {
+      _initialSnapshot = 'template-seed-sentinel';
+    }
     if (!_isNew) _loadAttachments();
   }
 
@@ -591,6 +600,144 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
     _initialSnapshot = _snapshot();
   }
 
+  // ── Collaboration ──
+  // Owner-only sheet to add / list / remove collaborators on this note.
+  Future<void> _openCollaborators() async {
+    if (_noteId == null) return;
+    // Persist any pending edit first so the note exists server-side to share.
+    try { if (_snapshot() != _initialSnapshot) { await _persist(_payload()); _initialSnapshot = _snapshot(); } } catch (_) {}
+    if (!mounted) return;
+    final emailCtrl = TextEditingController();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        List<Collaborator> people = [];
+        bool loading = true;
+        bool canEdit = true;
+        bool busy = false;
+        return StatefulBuilder(builder: (ctx, setSheet) {
+          Future<void> refresh() async {
+            try { people = await Api.instance.collaborators(_noteId!); } catch (_) {}
+            if (ctx.mounted) setSheet(() => loading = false);
+          }
+          if (loading) refresh();
+          Future<void> add() async {
+            final email = emailCtrl.text.trim();
+            if (email.isEmpty || busy) return;
+            setSheet(() => busy = true);
+            try {
+              await Api.instance.shareNote(_noteId!, email, canEdit: canEdit);
+              emailCtrl.clear();
+              people = await Api.instance.collaborators(_noteId!);
+            } catch (e) {
+              if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+            } finally {
+              if (ctx.mounted) setSheet(() => busy = false);
+            }
+          }
+          Future<void> remove(Collaborator c) async {
+            setSheet(() => busy = true);
+            try { await Api.instance.unshareNote(_noteId!, c.userId); people = await Api.instance.collaborators(_noteId!); }
+            catch (e) { if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(friendlyError(e)))); }
+            finally { if (ctx.mounted) setSheet(() => busy = false); }
+          }
+          return SafeArea(child: Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + MediaQuery.of(ctx).viewInsets.bottom),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const Icon(Icons.group_outlined, size: 20),
+                const SizedBox(width: 8),
+                Text(tr('collaborators'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              ]),
+              const SizedBox(height: 12),
+              TextField(
+                controller: emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+                decoration: InputDecoration(
+                  hintText: tr('add_by_email'),
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                  prefixIcon: const Icon(Icons.mail_outline, size: 18),
+                ),
+                onSubmitted: (_) => add(),
+              ),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(child: Text(canEdit ? tr('can_edit') : tr('view_only'), style: const TextStyle(color: kTextMuted))),
+                Switch(value: canEdit, onChanged: busy ? null : (v) => setSheet(() => canEdit = v)),
+                const SizedBox(width: 4),
+                FilledButton(onPressed: busy ? null : add, child: busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text(tr('add'))),
+              ]),
+              const SizedBox(height: 8),
+              if (loading) const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator()))
+              else if (people.isEmpty) Padding(padding: const EdgeInsets.all(12), child: Text(tr('no_collaborators'), style: const TextStyle(color: kTextMuted)))
+              else Flexible(child: ListView(shrinkWrap: true, children: [
+                for (final c in people)
+                  ListTile(
+                    dense: true,
+                    leading: CircleAvatar(radius: 16, backgroundColor: kBrand.withOpacity(0.15), child: Text(c.label.substring(0, 1).toUpperCase(), style: const TextStyle(color: kBrandDark, fontWeight: FontWeight.bold))),
+                    title: Text(c.label),
+                    subtitle: Text(c.canEdit ? tr('can_edit') : tr('view_only'), style: const TextStyle(fontSize: 12)),
+                    trailing: IconButton(tooltip: tr('remove'), icon: const Icon(Icons.close, size: 18), onPressed: busy ? null : () => remove(c)),
+                  ),
+              ])),
+            ]),
+          ));
+        });
+      },
+    );
+    emailCtrl.dispose();
+  }
+
+  // Simple view-only screen for a note shared with me that I may not edit.
+  Widget _buildReadOnlyView(BuildContext context) {
+    final owner = (widget.note?.ownerName ?? '').trim();
+    return Scaffold(
+      backgroundColor: noteColor(_color),
+      appBar: AppBar(
+        backgroundColor: noteColor(_color),
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black87),
+        actions: [
+          IconButton(tooltip: tr('share'), icon: const Icon(Icons.share_outlined, color: Colors.black54), onPressed: _shareNote),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(color: Colors.black.withOpacity(0.05), borderRadius: BorderRadius.circular(10)),
+            child: Row(children: [
+              const Icon(Icons.visibility_outlined, size: 16, color: Colors.black54),
+              const SizedBox(width: 8),
+              Expanded(child: Text(owner.isEmpty ? tr('view_only') : '${tr('view_only')} · ${tr('shared_by')} $owner',
+                  style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            ]),
+          ),
+          if (_title.text.trim().isNotEmpty)
+            SelectableText(_title.text, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: _ink, fontFamily: kDisplayFont)),
+          const SizedBox(height: 10),
+          if (_type == 'checklist')
+            ..._items.where((i) => i.text.trim().isNotEmpty).map((i) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(i.done ? Icons.check_box : Icons.check_box_outline_blank, size: 20, color: i.done ? kBrandDark : Colors.black38),
+                const SizedBox(width: 8),
+                Expanded(child: Text(i.text, style: TextStyle(fontSize: 15, color: _ink, decoration: i.done ? TextDecoration.lineThrough : null))),
+              ]),
+            ))
+          else if (_body.text.trim().isNotEmpty)
+            SelectableText(_body.text, style: const TextStyle(fontSize: 15, color: _ink, height: 1.35)),
+        ],
+      ),
+    );
+  }
+
   // Creates or updates the note and schedules/cancels its local reminder
   // notification. Shared by the explicit Save/back path and the background
   // autosave hook (BUG-005/BUG-010) — throws on failure, caller decides how
@@ -718,6 +865,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
 
   @override
   Widget build(BuildContext context) {
+    if (widget.readOnly) return _buildReadOnlyView(context);
+    final isSharedWithMe = widget.note?.shared ?? false;
     return PopScope(
       canPop: false, // back = auto-save then exit (never silently discard edits)
       onPopInvokedWithResult: (didPop, _) { if (!didPop) _onBack(); },
@@ -730,8 +879,13 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
         actions: [
           IconButton(tooltip: _pinned ? 'Unpin' : 'Pin', icon: Icon(_pinned ? Icons.push_pin : Icons.push_pin_outlined, color: _pinned ? kBrandDark : Colors.black54), onPressed: () => setState(() => _pinned = !_pinned)),
           IconButton(tooltip: tr('share'), icon: const Icon(Icons.share_outlined, color: Colors.black54), onPressed: _shareNote),
-          IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, color: Colors.black54), onPressed: _delete),
-          if (!_isNew)
+          // Collaborators + Delete + version history are OWNER-only surfaces —
+          // hidden on a note that was shared with me.
+          if (!_isNew && !isSharedWithMe)
+            IconButton(tooltip: tr('collaborators'), icon: const Icon(Icons.person_add_alt, color: Colors.black54), onPressed: _openCollaborators),
+          if (!isSharedWithMe)
+            IconButton(tooltip: 'Delete', icon: const Icon(Icons.delete_outline, color: Colors.black54), onPressed: _delete),
+          if (!_isNew && !isSharedWithMe)
             IconButton(tooltip: tr('version_history'), icon: const Icon(Icons.history, color: Colors.black54), onPressed: _openVersionHistory),
           TextButton(onPressed: _saving ? null : _save, child: _saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Text(tr('save'), style: const TextStyle(color: kBrandDark, fontWeight: FontWeight.bold))),
         ],

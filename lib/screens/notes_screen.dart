@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api.dart';
 import '../auth_messages.dart';
+import '../home_widget_service.dart';
 import '../l10n/strings.dart';
 import '../models.dart';
 import '../note_colors.dart';
@@ -54,17 +57,51 @@ class _NotesScreenState extends State<NotesScreen> {
   bool get _isTrash => _view == 'trash';
   bool get _isArchive => _view == 'archive';
 
+  StreamSubscription<List<SharedMediaFile>>? _shareSub;
+
   @override
   void initState() {
     super.initState();
     _restoreLayoutPref();
     _load();
+    _initShareReceiver();
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _shareSub?.cancel();
     super.dispose();
+  }
+
+  // Receive text / URLs shared FROM other apps into a new note (Keep parity).
+  // Handles both a cold start (getInitialMedia) and while the app is running
+  // (getMediaStream). Best-effort — never blocks or crashes the notes list.
+  void _initShareReceiver() {
+    try {
+      _shareSub = ReceiveSharingIntent.instance.getMediaStream().listen(
+        _handleShared,
+        onError: (_) {},
+      );
+      ReceiveSharingIntent.instance.getInitialMedia().then((files) {
+        _handleShared(files);
+        ReceiveSharingIntent.instance.reset(); // don't re-handle on next resume
+      }).catchError((_) {});
+    } catch (_) {/* plugin unavailable (e.g. tests) — ignore */}
+  }
+
+  Future<void> _handleShared(List<SharedMediaFile> files) async {
+    if (files.isEmpty || !mounted) return;
+    // Phase 1: text + URLs. Each text/url item carries its content in `.path`.
+    final text = files
+        .where((f) => f.type == SharedMediaType.text || f.type == SharedMediaType.url)
+        .map((f) => f.path.trim())
+        .where((s) => s.isNotEmpty)
+        .join('\n');
+    if (text.isEmpty) return;
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => NoteEditorScreen(initialText: text)));
+    if (changed == true) _load();
   }
 
   // Remember the grid/list choice across launches (like Google Keep).
@@ -91,7 +128,9 @@ class _NotesScreenState extends State<NotesScreen> {
       // whichever view was on screen).
       final archived = await Api.instance.notes(archived: true);
       List<Note> display;
-      if (_isArchive) {
+      if (_view == 'shared') {
+        display = await Api.instance.sharedWithMe();
+      } else if (_isArchive) {
         display = archived;
       } else if (_isTrash) {
         display = await Api.instance.notes(trashed: true);
@@ -111,6 +150,7 @@ class _NotesScreenState extends State<NotesScreen> {
         _offline = Api.instance.isOffline;
       });
       _rescheduleReminders(live); // keep OS reminders in sync with the notes
+      updateHomeWidget(live);     // refresh the home-screen widget (best-effort)
     } on ApiError catch (e) {
       if (e.unauthorized) { _logout(); return; }
       if (mounted) setState(() => _error = friendlyError(e));
@@ -196,7 +236,7 @@ class _NotesScreenState extends State<NotesScreen> {
     // A non-empty search spans the whole live+archived corpus regardless of
     // which view is open (BUG-003) — Trash stays separately scoped, matching
     // the convention that deleted items don't surface in general search.
-    var list = (q.isNotEmpty && !_isTrash) ? [..._liveNotes, ..._archivedNotes] : _notes;
+    var list = (q.isNotEmpty && !_isTrash && _view != 'shared') ? [..._liveNotes, ..._archivedNotes] : _notes;
     if (_view == 'reminders') {
       list = list.where((n) => n.reminderAt != null).toList();
       // Soonest reminder first (ISO-8601 UTC strings sort chronologically).
@@ -220,8 +260,10 @@ class _NotesScreenState extends State<NotesScreen> {
   Future<void> _openEditor([Note? note]) async {
     if (_isTrash) return; // trashed notes aren't editable
     if (_selecting && note != null) { _toggleSelect(note.id); return; }
+    // A note shared with me that I can't edit opens read-only.
+    final readOnly = note != null && note.shared && !note.canEdit;
     final changed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => NoteEditorScreen(note: note)));
+      MaterialPageRoute(builder: (_) => NoteEditorScreen(note: note, readOnly: readOnly)));
     if (changed == true) _load();
   }
 
@@ -379,6 +421,7 @@ class _NotesScreenState extends State<NotesScreen> {
       case 'reminders': return 'Reminders';
       case 'archive': return 'Archive';
       case 'trash': return 'Trash';
+      case 'shared': return tr('shared_with_me');
       case 'label': return _activeLabel ?? 'Label';
       default: return 'Kuk Keep';
     }
@@ -474,7 +517,7 @@ class _NotesScreenState extends State<NotesScreen> {
           ),
         ),
       ),
-      floatingActionButton: (_isTrash || _isArchive) ? null : FloatingActionButton.extended(
+      floatingActionButton: (_isTrash || _isArchive || _view == 'shared') ? null : FloatingActionButton.extended(
         backgroundColor: kBrand,
         foregroundColor: Colors.white,
         onPressed: _newNote,
@@ -555,6 +598,7 @@ class _NotesScreenState extends State<NotesScreen> {
             ),
             _drawerTile('notes', 'Notes', Icons.lightbulb_outline),
             _drawerTile('reminders', 'Reminders', Icons.notifications_none),
+            _drawerTile('shared', tr('shared_with_me'), Icons.group_outlined),
             ListTile(
               leading: const Icon(Icons.auto_awesome),
               title: const Text('AI Memory'),

@@ -169,6 +169,33 @@ jobs:
             sed -i 's|<application|<queries>\n        <intent>\n            <action android:name="android.intent.action.VIEW"/>\n            <data android:scheme="https"/>\n        </intent>\n    </queries>\n    <application|' "$M"
           fi
 
+      - name: Add SEND (share-to-KukKeep) text intent filter + singleTask
+        # Lets KukKeep receive text/URLs shared from other apps into a new note
+        # (receive_sharing_intent). Only text is declared, matching the client
+        # handler; singleTask reuses the running activity for a share/deep-link.
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's/android:launchMode="singleTop"/android:launchMode="singleTask"/' "$M"
+          grep -q 'android.intent.action.SEND' "$M" || \
+            sed -i 's|</activity>|    <intent-filter>\n                <action android:name="android.intent.action.SEND"/>\n                <category android:name="android.intent.category.DEFAULT"/>\n                <data android:mimeType="text/*"/>\n            </intent-filter>\n        </activity>|' "$M"
+          echo "--- SEND filter / launchMode ---"; grep -n 'android.intent.action.SEND\|launchMode' "$M" || true
+
+      - name: Add home-screen widget (native provider + layout + receiver)
+        # Copies the committed native widget files into the generated tree and
+        # registers the provider. Provider lives in the app's kotlin package
+        # (com.kuklabs.kukkeep — same as MainActivity + R); the manifest uses its
+        # fully-qualified name because applicationId is com.kuklabs.keep.
+        run: |
+          KDIR=android/app/src/main/kotlin/com/kuklabs/kukkeep
+          mkdir -p "$KDIR" android/app/src/main/res/layout android/app/src/main/res/xml
+          cp android_widget/NotesWidgetProvider.kt "$KDIR/NotesWidgetProvider.kt"
+          cp android_widget/notes_widget.xml android/app/src/main/res/layout/notes_widget.xml
+          cp android_widget/notes_widget_info.xml android/app/src/main/res/xml/notes_widget_info.xml
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q 'NotesWidgetProvider' "$M" || \
+            sed -i 's|</application>|    <receiver android:name="com.kuklabs.kukkeep.NotesWidgetProvider" android:exported="true">\n            <intent-filter>\n                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>\n            </intent-filter>\n            <meta-data android:name="android.appwidget.provider" android:resource="@xml/notes_widget_info"/>\n        </receiver>\n    </application>|' "$M"
+          echo "--- widget receiver ---"; grep -n 'NotesWidgetProvider' "$M" || true
+
       - name: Build signed release AAB
         env:
           KUKKEEP_STORE_PASSWORD: ${{ secrets.KUKKEEP_STORE_PASSWORD }}

@@ -51,6 +51,10 @@ class Note {
   String repeat; // none | daily | weekly | monthly (reminder recurrence)
   String? coverImage; // first image attachment URL, for card thumbnails
   int attachmentCount; // total attachments on the note (for the 📎 indicator)
+  // Collaboration: set only on notes that arrived via "Shared with me".
+  bool shared;        // this note is shared WITH me (I'm not the owner)
+  bool canEdit;       // I may edit it (else view-only)
+  String ownerName;   // display name of the note's owner
 
   Note({
     required this.id,
@@ -66,6 +70,9 @@ class Note {
     this.repeat = 'none',
     this.coverImage,
     this.attachmentCount = 0,
+    this.shared = false,
+    this.canEdit = false,
+    this.ownerName = '',
   });
 
   factory Note.fromJson(Map<String, dynamic> j) => Note(
@@ -84,6 +91,9 @@ class Note {
         repeat: (j['repeat'] ?? j['reminderRepeat'] ?? 'none').toString(),
         coverImage: (j['coverImage'] == null || j['coverImage'].toString().isEmpty) ? null : j['coverImage'].toString(),
         attachmentCount: (j['attachmentCount'] as num?)?.toInt() ?? 0,
+        shared: _asBool(j['shared']),
+        canEdit: _asBool(j['canEdit']),
+        ownerName: (j['ownerName'] ?? '').toString(),
       );
 
   bool get isEmpty => title.trim().isEmpty && body.trim().isEmpty && items.where((i) => i.text.trim().isNotEmpty).isEmpty;
@@ -156,4 +166,22 @@ class NoteVersion {
     final t = body.trim().isNotEmpty ? body.trim() : title.trim();
     return t.replaceAll('\n', ' ');
   }
+}
+
+/// A user a note is shared with (Google-Keep-style collaborator).
+class Collaborator {
+  final int userId;
+  final String name;
+  final String email;
+  final bool canEdit;
+  Collaborator({required this.userId, this.name = '', this.email = '', this.canEdit = false});
+  factory Collaborator.fromJson(Map<String, dynamic> j) => Collaborator(
+        userId: (j['userId'] as num).toInt(),
+        name: (j['name'] ?? '').toString(),
+        email: (j['email'] ?? '').toString(),
+        canEdit: _asBool(j['canEdit']),
+      );
+
+  /// Best available label: name, else email, else a generic fallback.
+  String get label => name.trim().isNotEmpty ? name.trim() : (email.trim().isNotEmpty ? email.trim() : 'User $userId');
 }

@@ -328,6 +328,28 @@ class Api {
   Future<void> restoreNoteVersion(int noteId, int versionId) =>
       mutate('keep.restoreVersion', {'noteId': noteId, 'versionId': versionId});
 
+  // ── Collaboration (share a note with other Kuklabs users) ──
+  /// Notes shared WITH me (each carries shared/canEdit/ownerName flags).
+  Future<List<Note>> sharedWithMe() async {
+    final data = await query('keep.sharedWithMe');
+    return data is List ? data.map((e) => Note.fromJson(e as Map<String, dynamic>)).toList() : <Note>[];
+  }
+
+  /// Share a note with a Kuklabs user by email. Owner-only; throws ApiError
+  /// (with a friendly message) if the email has no account, is yourself, etc.
+  Future<void> shareNote(int noteId, String email, {bool canEdit = false}) =>
+      mutate('keep.shareNote', {'noteId': noteId, 'email': email, 'canEdit': canEdit});
+
+  /// Remove a collaborator from a note (owner-only).
+  Future<void> unshareNote(int noteId, int userId) =>
+      mutate('keep.unshareNote', {'noteId': noteId, 'userId': userId});
+
+  /// List a note's collaborators (owner-only).
+  Future<List<Collaborator>> collaborators(int noteId) async {
+    final data = await query('keep.collaborators', {'noteId': noteId});
+    return data is List ? data.map((e) => Collaborator.fromJson(e as Map<String, dynamic>)).toList() : <Collaborator>[];
+  }
+
   /// Register this device's FCM token with the backend so the server can push
   /// reminders even when the OS has killed the app (the reliable delivery path
   /// on battery-optimizing OEMs). Best-effort: requires a session + an active
