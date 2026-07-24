@@ -6,6 +6,7 @@ import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api.dart';
 import '../auth_messages.dart';
+import '../home_widget_service.dart';
 import '../l10n/strings.dart';
 import '../models.dart';
 import '../note_colors.dart';
@@ -149,6 +150,7 @@ class _NotesScreenState extends State<NotesScreen> {
         _offline = Api.instance.isOffline;
       });
       _rescheduleReminders(live); // keep OS reminders in sync with the notes
+      updateHomeWidget(live);     // refresh the home-screen widget (best-effort)
     } on ApiError catch (e) {
       if (e.unauthorized) { _logout(); return; }
       if (mounted) setState(() => _error = friendlyError(e));
