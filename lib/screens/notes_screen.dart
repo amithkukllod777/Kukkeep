@@ -37,6 +37,13 @@ class _NotesScreenState extends State<NotesScreen> {
   bool _loading = true;
   String _search = '';
   final _searchCtrl = TextEditingController();
+
+  // ── Filters (client-side, applied on top of the current view/search) ──
+  final Set<String> _fTypes = {};   // 'note' | 'checklist'
+  bool _fReminder = false;          // only notes with a reminder
+  bool _fAttach = false;            // only notes with attachments
+  bool get _hasFilters => _fTypes.isNotEmpty || _fReminder || _fAttach;
+  void _clearFilters() { _fTypes.clear(); _fReminder = false; _fAttach = false; }
   String? _error;
   bool _offline = false; // last _load() served the local cache (Api.isOffline)
 
@@ -144,6 +151,46 @@ class _NotesScreenState extends State<NotesScreen> {
     _load();
   }
 
+  // Client-side filter sheet (type / has-reminder / has-attachment).
+  void _openFilters() {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
+        void flip(VoidCallback f) { setSheet(f); setState(f); }
+        return SafeArea(child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Text(tr('filters'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              const Spacer(),
+              if (_hasFilters) TextButton(onPressed: () => flip(_clearFilters), child: Text(tr('clear'))),
+            ]),
+            const SizedBox(height: 4),
+            Text(tr('filter_type'), style: const TextStyle(fontWeight: FontWeight.w600, color: kTextMuted)),
+            const SizedBox(height: 6),
+            Wrap(spacing: 8, children: [
+              FilterChip(label: Text(tr('filter_note')), selected: _fTypes.contains('note'),
+                onSelected: (_) => flip(() => _fTypes.contains('note') ? _fTypes.remove('note') : _fTypes.add('note'))),
+              FilterChip(label: Text(tr('filter_checklist')), selected: _fTypes.contains('checklist'),
+                onSelected: (_) => flip(() => _fTypes.contains('checklist') ? _fTypes.remove('checklist') : _fTypes.add('checklist'))),
+            ]),
+            const SizedBox(height: 12),
+            Text(tr('filter_other'), style: const TextStyle(fontWeight: FontWeight.w600, color: kTextMuted)),
+            const SizedBox(height: 6),
+            Wrap(spacing: 8, children: [
+              FilterChip(avatar: const Icon(Icons.notifications_none, size: 16), label: Text(tr('filter_reminder')), selected: _fReminder,
+                onSelected: (_) => flip(() => _fReminder = !_fReminder)),
+              FilterChip(avatar: const Icon(Icons.attach_file, size: 16), label: Text(tr('filter_attachment')), selected: _fAttach,
+                onSelected: (_) => flip(() => _fAttach = !_fAttach)),
+            ]),
+          ]),
+        ));
+      }),
+    );
+  }
+
   List<Note> get _filtered {
     final q = _search.trim().toLowerCase();
     // A non-empty search spans the whole live+archived corpus regardless of
@@ -163,6 +210,10 @@ class _NotesScreenState extends State<NotesScreen> {
         n.items.any((i) => i.text.toLowerCase().contains(q)) ||
         n.labels.any((l) => l.toLowerCase().contains(q))).toList();
     }
+    // Client-side filters (type / has-reminder / has-attachment).
+    if (_fTypes.isNotEmpty) list = list.where((n) => _fTypes.contains(n.type)).toList();
+    if (_fReminder) list = list.where((n) => n.reminderAt != null).toList();
+    if (_fAttach) list = list.where((n) => n.attachmentCount > 0).toList();
     return list;
   }
 
@@ -378,6 +429,12 @@ class _NotesScreenState extends State<NotesScreen> {
             fontWeight: FontWeight.w700, fontFamily: kDisplayFont, fontSize: 22)),
         ]),
         actions: [
+          if (!_isTrash)
+            IconButton(
+              tooltip: tr('filters'),
+              icon: Icon(_hasFilters ? Icons.filter_alt : Icons.filter_alt_outlined, color: _hasFilters ? kBrandDark : kBrand),
+              onPressed: _openFilters,
+            ),
           IconButton(
             tooltip: _grid ? 'List view' : 'Grid view',
             icon: Icon(_grid ? Icons.view_agenda_outlined : Icons.grid_view, color: kBrand),

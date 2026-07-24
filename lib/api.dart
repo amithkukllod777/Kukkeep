@@ -314,6 +314,20 @@ class Api {
     }
   }
 
+  /// Past content snapshots for a note (Google-Keep-style version history),
+  /// newest first. Requires the backend `keep.versions` endpoint.
+  Future<List<NoteVersion>> noteVersions(int noteId) async {
+    final data = await query('keep.versions', {'noteId': noteId});
+    return data is List
+        ? data.map((e) => NoteVersion.fromJson(e as Map<String, dynamic>)).toList()
+        : <NoteVersion>[];
+  }
+
+  /// Restore a note to an earlier version. The backend snapshots the current
+  /// content first, so the restore is itself reversible.
+  Future<void> restoreNoteVersion(int noteId, int versionId) =>
+      mutate('keep.restoreVersion', {'noteId': noteId, 'versionId': versionId});
+
   /// Register this device's FCM token with the backend so the server can push
   /// reminders even when the OS has killed the app (the reliable delivery path
   /// on battery-optimizing OEMs). Best-effort: requires a session + an active
