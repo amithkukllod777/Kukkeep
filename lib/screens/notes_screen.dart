@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:intl/intl.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -40,6 +42,7 @@ class _NotesScreenState extends State<NotesScreen> {
   bool _loading = true;
   String _search = '';
   final _searchCtrl = TextEditingController();
+  final _searchFocus = FocusNode(); // Ctrl+F / "/" focuses the search field
 
   // ── Filters (client-side, applied on top of the current view/search) ──
   final Set<String> _fTypes = {};   // 'note' | 'checklist'
@@ -58,6 +61,7 @@ class _NotesScreenState extends State<NotesScreen> {
   bool get _isArchive => _view == 'archive';
 
   StreamSubscription<List<SharedMediaFile>>? _shareSub;
+  StreamSubscription<Uri?>? _widgetSub;
 
   @override
   void initState() {
@@ -65,13 +69,36 @@ class _NotesScreenState extends State<NotesScreen> {
     _restoreLayoutPref();
     _load();
     _initShareReceiver();
+    _initWidgetLaunch();
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _searchFocus.dispose();
     _shareSub?.cancel();
+    _widgetSub?.cancel();
     super.dispose();
+  }
+
+  // Home-screen widget: the "＋" button opens a new note (kukkeep://new). Handles
+  // both a tap while running (widgetClicked) and a cold launch. Best-effort.
+  void _initWidgetLaunch() {
+    try {
+      _widgetSub = HomeWidget.widgetClicked.listen((uri) {
+        if (uri?.host == 'new') _openNewFromWidget();
+      });
+      HomeWidget.initiallyLaunchedFromHomeWidget().then((uri) {
+        if (uri?.host == 'new') _openNewFromWidget();
+      }).catchError((_) {});
+    } catch (_) {/* plugin unavailable (e.g. tests) — ignore */}
+  }
+
+  Future<void> _openNewFromWidget() async {
+    if (!mounted) return;
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const NoteEditorScreen()));
+    if (changed == true) _load();
   }
 
   // Receive text / URLs shared FROM other apps into a new note (Keep parity).
@@ -244,11 +271,14 @@ class _NotesScreenState extends State<NotesScreen> {
     }
     if (_view == 'label' && _activeLabel != null) list = list.where((n) => n.labels.contains(_activeLabel)).toList();
     if (q.isNotEmpty) {
+      // Searches title, body (OCR'd image text lands here too), checklist items,
+      // labels, and — for shared notes — the owner's name (person search).
       list = list.where((n) =>
         n.title.toLowerCase().contains(q) ||
         n.body.toLowerCase().contains(q) ||
         n.items.any((i) => i.text.toLowerCase().contains(q)) ||
-        n.labels.any((l) => l.toLowerCase().contains(q))).toList();
+        n.labels.any((l) => l.toLowerCase().contains(q)) ||
+        (n.ownerName.isNotEmpty && n.ownerName.toLowerCase().contains(q))).toList();
     }
     // Client-side filters (type / has-reminder / has-attachment).
     if (_fTypes.isNotEmpty) list = list.where((n) => _fTypes.contains(n.type)).toList();
@@ -458,7 +488,21 @@ class _NotesScreenState extends State<NotesScreen> {
     final list = _filtered;
     final pinned = _isTrash ? <Note>[] : list.where((n) => n.pinned).toList();
     final others = _isTrash ? list : list.where((n) => !n.pinned).toList();
-    return Scaffold(
+    // Hardware-keyboard shortcuts (Android tablets / DeX / Chromebook / desktop).
+    final canCreate = !_isTrash && !_isArchive && _view != 'shared';
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.keyN, control: true): () { if (canCreate && !_selecting) _newNote(); },
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true): () => _searchFocus.requestFocus(),
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          if (_selecting) { setState(() => _selected.clear()); }
+          else if (_search.isNotEmpty) { _searchCtrl.clear(); setState(() => _search = ''); }
+          else { _searchFocus.unfocus(); }
+        },
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
       drawer: _selecting ? null : _buildDrawer(),
       appBar: _selecting ? _selectionAppBar() : AppBar(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -499,6 +543,7 @@ class _NotesScreenState extends State<NotesScreen> {
               ),
               child: TextField(
                 controller: _searchCtrl,
+                focusNode: _searchFocus,
                 onChanged: (v) => setState(() => _search = v),
                 decoration: InputDecoration(
                   hintText: tr('search_notes'),
@@ -546,6 +591,8 @@ class _NotesScreenState extends State<NotesScreen> {
                     ],
                   ),
                 ),
+        ),
+      ),
     );
   }
 

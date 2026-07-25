@@ -5,14 +5,16 @@
 // this file into android/app/src/main/kotlin/com/kuklabs/kukkeep/ after
 // `flutter create`, and the manifest references it by its fully-qualified name.
 //
-// Display-only + tap-to-open: reads note_title/note_subtitle pushed from Dart via
-// home_widget, and opens the app on tap. No background Dart callback is used.
+// Shows up to 3 recent notes (pushed from Dart via home_widget). Tapping the body
+// opens the app (kukkeep://open); tapping "＋" opens a new note (kukkeep://new) —
+// the Dart side listens via HomeWidget.widgetClicked. No background Dart callback.
 package com.kuklabs.kukkeep
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.Uri
+import android.view.View
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
@@ -26,17 +28,31 @@ class NotesWidgetProvider : HomeWidgetProvider() {
     ) {
         appWidgetIds.forEach { widgetId ->
             val views = RemoteViews(context.packageName, R.layout.notes_widget).apply {
-                setTextViewText(R.id.widget_title, widgetData.getString("note_title", null) ?: "Kuk Keep")
-                setTextViewText(
-                    R.id.widget_subtitle,
-                    widgetData.getString("note_subtitle", null) ?: "Tap to open your notes",
+                val rows = listOf(
+                    R.id.widget_note1 to widgetData.getString("note_1", null),
+                    R.id.widget_note2 to widgetData.getString("note_2", null),
+                    R.id.widget_note3 to widgetData.getString("note_3", null),
                 )
-                val pending = HomeWidgetLaunchIntent.getActivity(
-                    context,
-                    MainActivity::class.java,
-                    Uri.parse("kukkeep://open"),
+                var anyShown = false
+                rows.forEach { (id, text) ->
+                    if (text.isNullOrBlank()) {
+                        setViewVisibility(id, View.GONE)
+                    } else {
+                        setViewVisibility(id, View.VISIBLE)
+                        setTextViewText(id, "•  $text")
+                        anyShown = true
+                    }
+                }
+                setViewVisibility(R.id.widget_empty, if (anyShown) View.GONE else View.VISIBLE)
+
+                setOnClickPendingIntent(
+                    R.id.widget_root,
+                    HomeWidgetLaunchIntent.getActivity(context, MainActivity::class.java, Uri.parse("kukkeep://open")),
                 )
-                setOnClickPendingIntent(R.id.widget_root, pending)
+                setOnClickPendingIntent(
+                    R.id.widget_add,
+                    HomeWidgetLaunchIntent.getActivity(context, MainActivity::class.java, Uri.parse("kukkeep://new")),
+                )
             }
             appWidgetManager.updateAppWidget(widgetId, views)
         }

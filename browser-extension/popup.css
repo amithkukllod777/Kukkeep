@@ -1,0 +1,41 @@
+/* KukKeep Web Clipper — mirrors the app's tokens (Inter, accent #2868F0). */
+* { box-sizing: border-box; }
+body {
+  width: 320px;
+  margin: 0;
+  padding: 14px;
+  font-family: Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #101828;
+  background: #ffffff;
+}
+.hdr { display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px; }
+.brand { color: #2868f0; font-weight: 700; font-size: 16px; }
+.tag { color: #667085; font-size: 12px; }
+.lbl { display: block; font-size: 12px; font-weight: 600; color: #475467; margin: 8px 0 4px; }
+.in {
+  width: 100%;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #101828;
+}
+.in:focus { outline: none; border-color: #2868f0; box-shadow: 0 0 0 3px rgba(40, 104, 240, 0.15); }
+.ta { resize: vertical; min-height: 90px; }
+.btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background: #2868f0;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn:disabled { opacity: 0.6; cursor: default; }
+.status { margin-top: 10px; font-size: 12px; min-height: 16px; }
+.status.ok { color: #039855; }
+.status.err { color: #d92d20; }

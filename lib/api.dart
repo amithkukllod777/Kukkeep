@@ -328,6 +328,16 @@ class Api {
   Future<void> restoreNoteVersion(int noteId, int versionId) =>
       mutate('keep.restoreVersion', {'noteId': noteId, 'versionId': versionId});
 
+  /// Transcribe a voice-note attachment to text (server-side Whisper).
+  Future<String> transcribeAttachment(int attachmentId, {String? language}) async {
+    final data = await mutate('keep.transcribe', {
+      'attachmentId': attachmentId,
+      if (language != null) 'language': language,
+    });
+    if (data is Map && data['text'] != null) return data['text'].toString();
+    return '';
+  }
+
   // ── Collaboration (share a note with other Kuklabs users) ──
   /// Notes shared WITH me (each carries shared/canEdit/ownerName flags).
   Future<List<Note>> sharedWithMe() async {

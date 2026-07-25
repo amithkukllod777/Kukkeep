@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="hdr">
+    <span class="brand">Kuk Keep</span>
+    <span class="tag">Web Clipper</span>
+  </div>
+
+  <label class="lbl" for="title">Title</label>
+  <input id="title" class="in" type="text" placeholder="Note title" />
+
+  <label class="lbl" for="body">Note</label>
+  <textarea id="body" class="in ta" rows="7" placeholder="Selected text + link…"></textarea>
+
+  <button id="save" class="btn">Save to KukKeep</button>
+  <div id="status" class="status" role="status" aria-live="polite"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
