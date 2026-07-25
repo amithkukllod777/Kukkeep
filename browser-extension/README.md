@@ -25,9 +25,9 @@ the same browser.
 4. Click the toolbar icon on any page → edit → **Save to KukKeep**.
 
 ## Notes / follow-ups
-- **Icons:** none are bundled (Chrome shows a default icon). Drop
-  `icons/icon16.png`, `icon48.png`, `icon128.png` here and add an `"icons"` block
-  + `action.default_icon` to `manifest.json` to brand it.
+- **Icons:** bundled in `icons/` (16/48/128, generated from the KukKeep app icon)
+  and wired into `manifest.json` — the toolbar button is branded.
 - **Store publishing** (Chrome Web Store) is a manual step and is out of scope
-  for the app repo.
+  for the app repo. To publish: zip this folder and upload it in the Chrome Web
+  Store Developer Dashboard.
 - Kept intentionally dependency-free (plain HTML/CSS/JS) so it needs no build.
