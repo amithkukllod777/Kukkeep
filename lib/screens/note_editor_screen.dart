@@ -48,6 +48,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
   final List<TextEditingController> _itemCtrls = [];
   final List<FocusNode> _itemNodes = [];
 
+  int? _transcribing; // id of the audio attachment currently being transcribed
+
   // Editor text is always on a light pastel note background, so ink stays dark
   // regardless of the app's light/dark theme.
   static const Color _ink = Color(0xFF1E2230);
@@ -399,6 +401,34 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
       await _upload(name, 'audio/mp4', base64Encode(bytes), ocr: false);
       try { await File(path).delete(); } catch (_) {} // temp recording no longer needed
     } catch (e) { _snack(friendlyError(e)); }
+  }
+
+  // Transcribe a voice-note attachment to text (server Whisper) and drop the
+  // result into the note — as a new checklist item, or appended to the body.
+  Future<void> _transcribe(Attachment a) async {
+    setState(() => _transcribing = a.id);
+    try {
+      final code = LocaleController.locale.value.languageCode;
+      final text = await Api.instance.transcribeAttachment(a.id, language: code);
+      if (!mounted) return;
+      if (text.trim().isEmpty) { _snack(tr('no_speech')); return; }
+      setState(() {
+        if (_type == 'checklist') {
+          _syncItems();
+          _items.add(ChecklistItem(text: text.trim()));
+          _disposeItemControllers();
+          _buildItemControllers();
+        } else {
+          final sep = _body.text.trim().isEmpty ? '' : '\n\n';
+          _body.text = '${_body.text}$sep${text.trim()}';
+        }
+      });
+      _snack(tr('transcribed'));
+    } catch (e) {
+      if (mounted) _snack(friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _transcribing = null);
+    }
   }
 
   Future<void> _upload(String name, String type, String b64, {required bool ocr}) async {
@@ -1014,7 +1044,17 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
                           errorWidget: (_, __, ___) => Container(width: 72, height: 72, color: Colors.black12, child: const Icon(Icons.broken_image, color: Colors.black38))),
                       )
                     else if (a.isAudio)
-                      AudioChip(url: Api.instance.absoluteUrl(a.fileUrl), label: a.fileName)
+                      Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        AudioChip(url: Api.instance.absoluteUrl(a.fileUrl), label: a.fileName),
+                        TextButton.icon(
+                          onPressed: _transcribing == a.id ? null : () => _transcribe(a),
+                          icon: _transcribing == a.id
+                              ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.subtitles_outlined, size: 16),
+                          label: Text(tr('transcribe'), style: const TextStyle(fontSize: 11)),
+                          style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 6), foregroundColor: kBrandDark),
+                        ),
+                      ])
                     else
                       Container(
                         width: 96, height: 72, padding: const EdgeInsets.all(6),

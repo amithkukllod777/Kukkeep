@@ -10,28 +10,28 @@ import 'models.dart';
 /// (com.kuklabs.kukkeep, where MainActivity + the R class also live).
 const String _kProvider = 'com.kuklabs.kukkeep.NotesWidgetProvider';
 
-/// Update the home-screen widget from the current note list. Best-effort —
-/// never throws (the widget/plugin may be absent, e.g. in tests or on iOS).
+/// One-line label for a note (title, else joined body/checklist, else fallback).
+String _labelFor(Note n) {
+  final t = n.title.trim();
+  if (t.isNotEmpty) return t;
+  final body = n.type == 'checklist'
+      ? n.items.where((i) => i.text.trim().isNotEmpty).map((i) => i.text.trim()).join(', ')
+      : n.body.trim();
+  return body.isNotEmpty ? body : 'Untitled note';
+}
+
+/// Update the home-screen widget from the current note list — shows up to 3
+/// recent notes. Best-effort; never throws (plugin/widget may be absent).
 Future<void> updateHomeWidget(List<Note> notes) async {
   try {
+    // Pinned first, then the rest in existing (recency) order — mirrors the app.
     final live = notes.where((n) => !n.archived).toList();
-    String title;
-    String subtitle;
-    if (live.isEmpty) {
-      title = 'Kuk Keep';
-      subtitle = 'Tap to add your first note';
-    } else {
-      // Prefer a pinned note, else the most recent (list is already ordered).
-      final top = live.firstWhere((n) => n.pinned, orElse: () => live.first);
-      final t = top.title.trim();
-      final body = top.type == 'checklist'
-          ? top.items.where((i) => i.text.trim().isNotEmpty).map((i) => i.text.trim()).join(', ')
-          : top.body.trim();
-      title = t.isNotEmpty ? t : (body.isNotEmpty ? body : 'Untitled note');
-      subtitle = '${live.length} note${live.length == 1 ? '' : 's'} · tap to open';
-    }
-    await HomeWidget.saveWidgetData<String>('note_title', title);
-    await HomeWidget.saveWidgetData<String>('note_subtitle', subtitle);
+    live.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+    String slot(int i) => i < live.length ? _labelFor(live[i]) : '';
+    await HomeWidget.saveWidgetData<String>('note_1', slot(0));
+    await HomeWidget.saveWidgetData<String>('note_2', slot(1));
+    await HomeWidget.saveWidgetData<String>('note_3', slot(2));
+    await HomeWidget.saveWidgetData<int>('note_count', live.length);
     await HomeWidget.updateWidget(qualifiedAndroidName: _kProvider);
   } catch (_) {/* plugin/widget unavailable — ignore */}
 }

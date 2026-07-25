@@ -78,6 +78,7 @@ String tr(String key) {
       _share[code]?[key] ??
       _history[code]?[key] ??
       _collab[code]?[key] ??
+      _stt[code]?[key] ??
       _t['en']?[key] ??
       _extra['en']?[key] ??
       _notif['en']?[key] ??
@@ -87,6 +88,7 @@ String tr(String key) {
       _share['en']?[key] ??
       _history['en']?[key] ??
       _collab['en']?[key] ??
+      _stt['en']?[key] ??
       key;
 }
 
@@ -666,4 +668,20 @@ const Map<String, Map<String, String>> _collab = {
   'zh': {'collaborators': '协作者', 'shared_with_me': '与我共享', 'add_by_email': '按邮箱添加', 'can_edit': '可编辑', 'view_only': '仅查看', 'add': '添加', 'no_collaborators': '暂无协作者', 'remove': '移除', 'shared_by': '共享者'},
   'ja': {'collaborators': '共同編集者', 'shared_with_me': '共有アイテム', 'add_by_email': 'メールで追加', 'can_edit': '編集可能', 'view_only': '閲覧のみ', 'add': '追加', 'no_collaborators': 'まだ共同編集者はいません', 'remove': '削除', 'shared_by': '共有者'},
   'id': {'collaborators': 'Kolaborator', 'shared_with_me': 'Dibagikan ke saya', 'add_by_email': 'Tambah lewat email', 'can_edit': 'Bisa mengedit', 'view_only': 'Hanya lihat', 'add': 'Tambah', 'no_collaborators': 'Belum ada kolaborator', 'remove': 'Hapus', 'shared_by': 'dibagikan oleh'},
+};
+
+// Voice-transcription strings. tr() falls back to English.
+const Map<String, Map<String, String>> _stt = {
+  'en': {'transcribe': 'Transcribe', 'transcribed': 'Transcribed', 'no_speech': 'No speech detected'},
+  'hi': {'transcribe': 'लिप्यंतरण', 'transcribed': 'लिप्यंतरण हो गया', 'no_speech': 'कोई आवाज़ नहीं मिली'},
+  'bn': {'transcribe': 'প্রতিলিপি', 'transcribed': 'প্রতিলিপি হয়েছে', 'no_speech': 'কোনো কথা পাওয়া যায়নি'},
+  'es': {'transcribe': 'Transcribir', 'transcribed': 'Transcrito', 'no_speech': 'No se detectó voz'},
+  'pt': {'transcribe': 'Transcrever', 'transcribed': 'Transcrito', 'no_speech': 'Nenhuma fala detectada'},
+  'fr': {'transcribe': 'Transcrire', 'transcribed': 'Transcrit', 'no_speech': 'Aucune parole détectée'},
+  'de': {'transcribe': 'Transkribieren', 'transcribed': 'Transkribiert', 'no_speech': 'Keine Sprache erkannt'},
+  'ru': {'transcribe': 'Расшифровать', 'transcribed': 'Расшифровано', 'no_speech': 'Речь не обнаружена'},
+  'ar': {'transcribe': 'تفريغ نصي', 'transcribed': 'تم التفريغ', 'no_speech': 'لم يتم اكتشاف كلام'},
+  'zh': {'transcribe': '转文字', 'transcribed': '已转文字', 'no_speech': '未检测到语音'},
+  'ja': {'transcribe': '文字起こし', 'transcribed': '文字起こし完了', 'no_speech': '音声が検出されません'},
+  'id': {'transcribe': 'Transkrip', 'transcribed': 'Ditranskrip', 'no_speech': 'Tidak ada ucapan terdeteksi'},
 };

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:intl/intl.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -58,6 +59,7 @@ class _NotesScreenState extends State<NotesScreen> {
   bool get _isArchive => _view == 'archive';
 
   StreamSubscription<List<SharedMediaFile>>? _shareSub;
+  StreamSubscription<Uri?>? _widgetSub;
 
   @override
   void initState() {
@@ -65,13 +67,35 @@ class _NotesScreenState extends State<NotesScreen> {
     _restoreLayoutPref();
     _load();
     _initShareReceiver();
+    _initWidgetLaunch();
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
     _shareSub?.cancel();
+    _widgetSub?.cancel();
     super.dispose();
+  }
+
+  // Home-screen widget: the "＋" button opens a new note (kukkeep://new). Handles
+  // both a tap while running (widgetClicked) and a cold launch. Best-effort.
+  void _initWidgetLaunch() {
+    try {
+      _widgetSub = HomeWidget.widgetClicked.listen((uri) {
+        if (uri?.host == 'new') _openNewFromWidget();
+      });
+      HomeWidget.initiallyLaunchedFromHomeWidget().then((uri) {
+        if (uri?.host == 'new') _openNewFromWidget();
+      }).catchError((_) {});
+    } catch (_) {/* plugin unavailable (e.g. tests) — ignore */}
+  }
+
+  Future<void> _openNewFromWidget() async {
+    if (!mounted) return;
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const NoteEditorScreen()));
+    if (changed == true) _load();
   }
 
   // Receive text / URLs shared FROM other apps into a new note (Keep parity).
@@ -244,11 +268,14 @@ class _NotesScreenState extends State<NotesScreen> {
     }
     if (_view == 'label' && _activeLabel != null) list = list.where((n) => n.labels.contains(_activeLabel)).toList();
     if (q.isNotEmpty) {
+      // Searches title, body (OCR'd image text lands here too), checklist items,
+      // labels, and — for shared notes — the owner's name (person search).
       list = list.where((n) =>
         n.title.toLowerCase().contains(q) ||
         n.body.toLowerCase().contains(q) ||
         n.items.any((i) => i.text.toLowerCase().contains(q)) ||
-        n.labels.any((l) => l.toLowerCase().contains(q))).toList();
+        n.labels.any((l) => l.toLowerCase().contains(q)) ||
+        (n.ownerName.isNotEmpty && n.ownerName.toLowerCase().contains(q))).toList();
     }
     // Client-side filters (type / has-reminder / has-attachment).
     if (_fTypes.isNotEmpty) list = list.where((n) => _fTypes.contains(n.type)).toList();
