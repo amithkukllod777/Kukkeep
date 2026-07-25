@@ -196,6 +196,20 @@ jobs:
             sed -i 's|</application>|    <receiver android:name="com.kuklabs.kukkeep.NotesWidgetProvider" android:exported="true">\n            <intent-filter>\n                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>\n            </intent-filter>\n            <meta-data android:name="android.appwidget.provider" android:resource="@xml/notes_widget_info"/>\n        </receiver>\n    </application>|' "$M"
           echo "--- widget receiver ---"; grep -n 'NotesWidgetProvider' "$M" || true
 
+      - name: Add speech-recognition query (on-device voice typing, SDK 30+)
+        # speech_to_text needs the RecognitionService intent visible in <queries>
+        # for Android 11+ package visibility. <queries> already exists (deep-link
+        # step); inject the speech intent into it if missing.
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          if grep -q '<queries>' "$M"; then
+            grep -q 'android.speech.RecognitionService' "$M" || \
+              sed -i '0,/<queries>/s||<queries>\n        <intent>\n            <action android:name="android.speech.RecognitionService"/>\n        </intent>|' "$M"
+          else
+            sed -i 's|<application|<queries>\n        <intent>\n            <action android:name="android.speech.RecognitionService"/>\n        </intent>\n    </queries>\n    <application|' "$M"
+          fi
+          echo "--- speech query ---"; grep -n 'RecognitionService' "$M" || true
+
       - name: Build release APK
         env:
           KUKKEEP_STORE_PASSWORD: ${{ secrets.KUKKEEP_STORE_PASSWORD }}

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import '../api.dart';
 import '../auth_messages.dart';
 import '../l10n/strings.dart';
@@ -430,6 +431,60 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
     } finally {
       if (mounted) setState(() => _transcribing = null);
     }
+  }
+
+  // On-device voice typing (Keep parity): dictate straight into the note using
+  // the phone's own speech recognizer — no API key, no cost, works offline on
+  // devices with on-device recognition. Inserts the final text on stop.
+  Future<void> _voiceType() async {
+    final speech = SpeechToText();
+    bool available = false;
+    try { available = await speech.initialize(onError: (_) {}, onStatus: (_) {}); } catch (_) {}
+    if (!available) { if (mounted) _snack(tr('speech_unavailable')); return; }
+    if (!mounted) return;
+    String words = '';
+    final code = LocaleController.locale.value.languageCode;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
+        // Begin listening on first build; each partial result rebuilds the sheet.
+        if (!speech.isListening && words.isEmpty) {
+          speech.listen(onResult: (r) => setSheet(() => words = r.recognizedWords), localeId: code);
+        }
+        return SafeArea(child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.mic, size: 40, color: kBrand),
+            const SizedBox(height: 12),
+            Text(words.isEmpty ? tr('listening') : words,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, color: words.isEmpty ? kTextMuted : kTextPrimary)),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: () async { try { await speech.stop(); } catch (_) {} if (ctx.mounted) Navigator.pop(ctx); },
+              icon: const Icon(Icons.stop),
+              label: Text(tr('stop')),
+            ),
+          ]),
+        ));
+      }),
+    );
+    try { await speech.stop(); } catch (_) {}
+    if (!mounted) return;
+    final text = words.trim();
+    if (text.isEmpty) return;
+    setState(() {
+      if (_type == 'checklist') {
+        _syncItems();
+        _items.add(ChecklistItem(text: text));
+        _disposeItemControllers();
+        _buildItemControllers();
+      } else {
+        final sep = _body.text.trim().isEmpty ? '' : ' ';
+        _body.text = '${_body.text}$sep$text';
+      }
+    });
   }
 
   Future<void> _upload(String name, String type, String b64, {required bool ocr}) async {
@@ -1034,6 +1089,13 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
                   label: Text(tr('voice'), style: const TextStyle(fontSize: 11)),
                   visualDensity: VisualDensity.compact,
                   onPressed: _uploading ? null : _addVoice,
+                ),
+                ActionChip(
+                  avatar: const Icon(Icons.keyboard_voice_outlined, size: 16, color: kBrandDark),
+                  label: Text(tr('voice_typing'), style: const TextStyle(fontSize: 11, color: kBrandDark)),
+                  backgroundColor: const Color(0xFFE3F2FD),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _uploading ? null : _voiceType,
                 ),
                 if (_uploading) const Padding(padding: EdgeInsets.all(6), child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))),
               ])),
