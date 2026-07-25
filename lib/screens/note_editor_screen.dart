@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
@@ -897,7 +898,12 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
   Widget build(BuildContext context) {
     if (widget.readOnly) return _buildReadOnlyView(context);
     final isSharedWithMe = widget.note?.shared ?? false;
-    return PopScope(
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        // Ctrl+S saves (hardware keyboards: tablets / DeX / Chromebook / desktop).
+        const SingleActivator(LogicalKeyboardKey.keyS, control: true): () { if (!_saving) _save(); },
+      },
+      child: PopScope(
       canPop: false, // back = auto-save then exit (never silently discard edits)
       onPopInvokedWithResult: (didPop, _) { if (!didPop) _onBack(); },
       child: Scaffold(
@@ -1176,6 +1182,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
           const SizedBox(height: 40),
         ],
       ),
-    ));
+    )));
   }
 }

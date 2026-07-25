@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:intl/intl.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
@@ -41,6 +42,7 @@ class _NotesScreenState extends State<NotesScreen> {
   bool _loading = true;
   String _search = '';
   final _searchCtrl = TextEditingController();
+  final _searchFocus = FocusNode(); // Ctrl+F / "/" focuses the search field
 
   // ── Filters (client-side, applied on top of the current view/search) ──
   final Set<String> _fTypes = {};   // 'note' | 'checklist'
@@ -73,6 +75,7 @@ class _NotesScreenState extends State<NotesScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _searchFocus.dispose();
     _shareSub?.cancel();
     _widgetSub?.cancel();
     super.dispose();
@@ -485,7 +488,21 @@ class _NotesScreenState extends State<NotesScreen> {
     final list = _filtered;
     final pinned = _isTrash ? <Note>[] : list.where((n) => n.pinned).toList();
     final others = _isTrash ? list : list.where((n) => !n.pinned).toList();
-    return Scaffold(
+    // Hardware-keyboard shortcuts (Android tablets / DeX / Chromebook / desktop).
+    final canCreate = !_isTrash && !_isArchive && _view != 'shared';
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.keyN, control: true): () { if (canCreate && !_selecting) _newNote(); },
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true): () => _searchFocus.requestFocus(),
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          if (_selecting) { setState(() => _selected.clear()); }
+          else if (_search.isNotEmpty) { _searchCtrl.clear(); setState(() => _search = ''); }
+          else { _searchFocus.unfocus(); }
+        },
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
       drawer: _selecting ? null : _buildDrawer(),
       appBar: _selecting ? _selectionAppBar() : AppBar(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -526,6 +543,7 @@ class _NotesScreenState extends State<NotesScreen> {
               ),
               child: TextField(
                 controller: _searchCtrl,
+                focusNode: _searchFocus,
                 onChanged: (v) => setState(() => _search = v),
                 decoration: InputDecoration(
                   hintText: tr('search_notes'),
@@ -573,6 +591,8 @@ class _NotesScreenState extends State<NotesScreen> {
                     ],
                   ),
                 ),
+        ),
+      ),
     );
   }
 
