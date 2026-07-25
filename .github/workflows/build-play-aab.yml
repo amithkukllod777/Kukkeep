@@ -104,6 +104,16 @@ jobs:
       - name: Pub get
         run: flutter pub get
 
+      - name: Relax Kotlin/Java JVM-target validation (plugin bytecode mismatch)
+        # Some plugins (e.g. receive_sharing_intent) compile Java at target 11 but
+        # Kotlin at 17; Gradle's consistency check fails the build. Android's
+        # D8/R8 dexes the mixed bytecode fine, so downgrade the check to a warning.
+        run: |
+          P=android/gradle.properties
+          grep -q 'kotlin.jvm.target.validation.mode' "$P" 2>/dev/null || \
+            echo 'kotlin.jvm.target.validation.mode=warning' >> "$P"
+          echo "--- gradle.properties tail ---"; tail -3 "$P"
+
       - name: Run tests
         run: flutter test
 
