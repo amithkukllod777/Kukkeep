@@ -672,16 +672,16 @@ const Map<String, Map<String, String>> _collab = {
 
 // Voice-transcription strings. tr() falls back to English.
 const Map<String, Map<String, String>> _stt = {
-  'en': {'transcribe': 'Transcribe', 'transcribed': 'Transcribed', 'no_speech': 'No speech detected'},
-  'hi': {'transcribe': 'लिप्यंतरण', 'transcribed': 'लिप्यंतरण हो गया', 'no_speech': 'कोई आवाज़ नहीं मिली'},
-  'bn': {'transcribe': 'প্রতিলিপি', 'transcribed': 'প্রতিলিপি হয়েছে', 'no_speech': 'কোনো কথা পাওয়া যায়নি'},
-  'es': {'transcribe': 'Transcribir', 'transcribed': 'Transcrito', 'no_speech': 'No se detectó voz'},
-  'pt': {'transcribe': 'Transcrever', 'transcribed': 'Transcrito', 'no_speech': 'Nenhuma fala detectada'},
-  'fr': {'transcribe': 'Transcrire', 'transcribed': 'Transcrit', 'no_speech': 'Aucune parole détectée'},
-  'de': {'transcribe': 'Transkribieren', 'transcribed': 'Transkribiert', 'no_speech': 'Keine Sprache erkannt'},
-  'ru': {'transcribe': 'Расшифровать', 'transcribed': 'Расшифровано', 'no_speech': 'Речь не обнаружена'},
-  'ar': {'transcribe': 'تفريغ نصي', 'transcribed': 'تم التفريغ', 'no_speech': 'لم يتم اكتشاف كلام'},
-  'zh': {'transcribe': '转文字', 'transcribed': '已转文字', 'no_speech': '未检测到语音'},
-  'ja': {'transcribe': '文字起こし', 'transcribed': '文字起こし完了', 'no_speech': '音声が検出されません'},
-  'id': {'transcribe': 'Transkrip', 'transcribed': 'Ditranskrip', 'no_speech': 'Tidak ada ucapan terdeteksi'},
+  'en': {'transcribe': 'Transcribe', 'transcribed': 'Transcribed', 'no_speech': 'No speech detected', 'voice_typing': 'Voice typing', 'listening': 'Listening…', 'stop': 'Stop', 'speech_unavailable': 'Speech recognition unavailable on this device'},
+  'hi': {'transcribe': 'लिप्यंतरण', 'transcribed': 'लिप्यंतरण हो गया', 'no_speech': 'कोई आवाज़ नहीं मिली', 'voice_typing': 'बोलकर लिखें', 'listening': 'सुन रहे हैं…', 'stop': 'रोकें', 'speech_unavailable': 'इस डिवाइस पर वॉइस पहचान उपलब्ध नहीं'},
+  'bn': {'transcribe': 'প্রতিলিপি', 'transcribed': 'প্রতিলিপি হয়েছে', 'no_speech': 'কোনো কথা পাওয়া যায়নি', 'voice_typing': 'কণ্ঠে টাইপ', 'listening': 'শুনছি…', 'stop': 'থামুন', 'speech_unavailable': 'এই ডিভাইসে ভয়েস শনাক্তকরণ নেই'},
+  'es': {'transcribe': 'Transcribir', 'transcribed': 'Transcrito', 'no_speech': 'No se detectó voz', 'voice_typing': 'Dictado de voz', 'listening': 'Escuchando…', 'stop': 'Detener', 'speech_unavailable': 'Reconocimiento de voz no disponible en este dispositivo'},
+  'pt': {'transcribe': 'Transcrever', 'transcribed': 'Transcrito', 'no_speech': 'Nenhuma fala detectada', 'voice_typing': 'Ditado por voz', 'listening': 'Ouvindo…', 'stop': 'Parar', 'speech_unavailable': 'Reconhecimento de voz indisponível neste aparelho'},
+  'fr': {'transcribe': 'Transcrire', 'transcribed': 'Transcrit', 'no_speech': 'Aucune parole détectée', 'voice_typing': 'Saisie vocale', 'listening': 'Écoute…', 'stop': 'Arrêter', 'speech_unavailable': 'Reconnaissance vocale indisponible sur cet appareil'},
+  'de': {'transcribe': 'Transkribieren', 'transcribed': 'Transkribiert', 'no_speech': 'Keine Sprache erkannt', 'voice_typing': 'Spracheingabe', 'listening': 'Höre zu…', 'stop': 'Stopp', 'speech_unavailable': 'Spracherkennung auf diesem Gerät nicht verfügbar'},
+  'ru': {'transcribe': 'Расшифровать', 'transcribed': 'Расшифровано', 'no_speech': 'Речь не обнаружена', 'voice_typing': 'Голосовой ввод', 'listening': 'Слушаю…', 'stop': 'Стоп', 'speech_unavailable': 'Распознавание речи недоступно на этом устройстве'},
+  'ar': {'transcribe': 'تفريغ نصي', 'transcribed': 'تم التفريغ', 'no_speech': 'لم يتم اكتشاف كلام', 'voice_typing': 'الكتابة بالصوت', 'listening': 'جارٍ الاستماع…', 'stop': 'إيقاف', 'speech_unavailable': 'التعرف على الكلام غير متاح على هذا الجهاز'},
+  'zh': {'transcribe': '转文字', 'transcribed': '已转文字', 'no_speech': '未检测到语音', 'voice_typing': '语音输入', 'listening': '正在聆听…', 'stop': '停止', 'speech_unavailable': '此设备不支持语音识别'},
+  'ja': {'transcribe': '文字起こし', 'transcribed': '文字起こし完了', 'no_speech': '音声が検出されません', 'voice_typing': '音声入力', 'listening': '聞き取り中…', 'stop': '停止', 'speech_unavailable': 'この端末では音声認識を利用できません'},
+  'id': {'transcribe': 'Transkrip', 'transcribed': 'Ditranskrip', 'no_speech': 'Tidak ada ucapan terdeteksi', 'voice_typing': 'Ketik suara', 'listening': 'Mendengarkan…', 'stop': 'Berhenti', 'speech_unavailable': 'Pengenalan suara tidak tersedia di perangkat ini'},
 };
