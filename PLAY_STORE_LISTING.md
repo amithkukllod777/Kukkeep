@@ -88,6 +88,11 @@ shared with third parties, not for ads):
   stored to provide sync.
 - Data is encrypted in transit (HTTPS). Users can request deletion via
   support@kuklabs.com / their KukLabs account.
+- **Account deletion URL (paste into Play Console → Data safety):**
+  **https://www.kuklabs.com/delete-account**
+  Public, no sign-in; covers all KukLabs apps incl. KukKeep (whole-account or
+  single-app scope). Verified live (HTTP 200). `keep.kuklabs.com/delete-account`
+  resolves to the same page.
 
 ## Graphics you still need to upload (binary assets — prepare separately)
 - **App icon:** 512×512 PNG (the KukKeep checklist icon).
