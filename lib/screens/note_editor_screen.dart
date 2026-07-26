@@ -434,57 +434,111 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
   }
 
   // On-device voice typing (Keep parity): dictate straight into the note using
-  // the phone's own speech recognizer — no API key, no cost, works offline on
-  // devices with on-device recognition. Inserts the final text on stop.
+  // the phone's own speech recognizer — no API key, no cost, offline where the
+  // device supports it. Text streams into the note LIVE as you speak, and it
+  // keeps listening across pauses (multi-sentence) until you tap Stop.
   Future<void> _voiceType() async {
     final speech = SpeechToText();
-    bool available = false;
-    try { available = await speech.initialize(onError: (_) {}, onStatus: (_) {}); } catch (_) {}
-    if (!available) { if (mounted) _snack(tr('speech_unavailable')); return; }
-    if (!mounted) return;
-    String words = '';
     final code = LocaleController.locale.value.languageCode;
+    final bool checklist = _type == 'checklist';
+
+    // Dictate into a fresh checklist item, or append to the note body. `base`
+    // is the text that existed before dictation; committed = finalised sessions.
+    int? itemIndex;
+    String base = '';
+    if (checklist) {
+      _syncItems();
+      setState(() => _items.add(ChecklistItem(text: '')));
+      itemIndex = _items.length - 1;
+      _disposeItemControllers();
+      _buildItemControllers();
+    } else {
+      base = _body.text;
+    }
+    var committed = '';
+    var active = true;
+
+    // Live-write (committed sessions + the in-progress partial) into the note.
+    void apply(String live) {
+      final joined = committed.isEmpty ? live : (live.isEmpty ? committed : '$committed $live');
+      if (!mounted) return;
+      setState(() {
+        if (checklist && itemIndex != null && itemIndex! < _itemCtrls.length) {
+          _itemCtrls[itemIndex!].text = joined;
+          _items[itemIndex!].text = joined;
+        } else {
+          final sep = (base.isEmpty || base.endsWith(' ') || base.endsWith('\n')) ? '' : ' ';
+          _body.text = joined.isEmpty ? base : '$base$sep$joined';
+          _body.selection = TextSelection.collapsed(offset: _body.text.length);
+        }
+      });
+    }
+
+    Future<void> startSession() async {
+      if (!active) return;
+      try {
+        await speech.listen(
+          localeId: code,
+          listenFor: const Duration(minutes: 2),
+          pauseFor: const Duration(seconds: 8),
+          onResult: (r) {
+            apply(r.recognizedWords);
+            if (r.finalResult && r.recognizedWords.trim().isNotEmpty) {
+              committed = committed.isEmpty ? r.recognizedWords.trim() : '$committed ${r.recognizedWords.trim()}';
+            }
+          },
+        );
+      } catch (_) {}
+    }
+
+    bool available = false;
+    try {
+      available = await speech.initialize(
+        onError: (_) {},
+        // A session ends on silence/timeout — restart while still dictating so
+        // more than one sentence keeps getting appended.
+        onStatus: (status) {
+          if (active && !speech.isListening && (status == 'done' || status == 'notListening')) {
+            startSession();
+          }
+        },
+      );
+    } catch (_) {}
+    if (!available) {
+      if (checklist && itemIndex != null) { setState(() => _items.removeAt(itemIndex!)); _disposeItemControllers(); _buildItemControllers(); }
+      if (mounted) _snack(tr('speech_unavailable'));
+      return;
+    }
+    if (!mounted) { active = false; try { await speech.stop(); } catch (_) {} return; }
+
+    await startSession();
+
+    // A slim "listening" sheet — the text appears in the note above it, live.
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
-        // Begin listening on first build; each partial result rebuilds the sheet.
-        if (!speech.isListening && words.isEmpty) {
-          speech.listen(onResult: (r) => setSheet(() => words = r.recognizedWords), localeId: code);
-        }
-        return SafeArea(child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.mic, size: 40, color: kBrand),
-            const SizedBox(height: 12),
-            Text(words.isEmpty ? tr('listening') : words,
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: words.isEmpty ? kTextMuted : kTextPrimary)),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: () async { try { await speech.stop(); } catch (_) {} if (ctx.mounted) Navigator.pop(ctx); },
-              icon: const Icon(Icons.stop),
-              label: Text(tr('stop')),
-            ),
-          ]),
-        ));
-      }),
+      builder: (ctx) => SafeArea(child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.mic, size: 40, color: kBrand),
+          const SizedBox(height: 10),
+          Text(tr('listening'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: kTextPrimary)),
+          const SizedBox(height: 4),
+          Text(tr('voice_typing_hint'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: kTextMuted)),
+          const SizedBox(height: 18),
+          FilledButton.icon(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.stop), label: Text(tr('stop'))),
+        ]),
+      )),
     );
+
+    active = false;
     try { await speech.stop(); } catch (_) {}
-    if (!mounted) return;
-    final text = words.trim();
-    if (text.isEmpty) return;
-    setState(() {
-      if (_type == 'checklist') {
-        _syncItems();
-        _items.add(ChecklistItem(text: text));
-        _disposeItemControllers();
-        _buildItemControllers();
-      } else {
-        final sep = _body.text.trim().isEmpty ? '' : ' ';
-        _body.text = '${_body.text}$sep$text';
-      }
-    });
+    // Drop an empty dictation item if nothing was said.
+    if (checklist && itemIndex != null && mounted && (_items[itemIndex!].text.trim().isEmpty)) {
+      setState(() => _items.removeAt(itemIndex!));
+      _disposeItemControllers();
+      _buildItemControllers();
+    }
   }
 
   Future<void> _upload(String name, String type, String b64, {required bool ocr}) async {
