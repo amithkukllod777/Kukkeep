@@ -462,10 +462,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
     void apply(String live) {
       final joined = committed.isEmpty ? live : (live.isEmpty ? committed : '$committed $live');
       if (!mounted) return;
+      final idx = itemIndex;
       setState(() {
-        if (checklist && itemIndex != null && itemIndex! < _itemCtrls.length) {
-          _itemCtrls[itemIndex!].text = joined;
-          _items[itemIndex!].text = joined;
+        if (checklist && idx != null && idx < _itemCtrls.length) {
+          _itemCtrls[idx].text = joined;
+          _items[idx].text = joined;
         } else {
           final sep = (base.isEmpty || base.endsWith(' ') || base.endsWith('\n')) ? '' : ' ';
           _body.text = joined.isEmpty ? base : '$base$sep$joined';
@@ -505,13 +506,15 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
       );
     } catch (_) {}
     if (!available) {
-      if (checklist && itemIndex != null) { setState(() => _items.removeAt(itemIndex!)); _disposeItemControllers(); _buildItemControllers(); }
+      final idx = itemIndex;
+      if (checklist && idx != null) { setState(() => _items.removeAt(idx)); _disposeItemControllers(); _buildItemControllers(); }
       if (mounted) _snack(tr('speech_unavailable'));
       return;
     }
     if (!mounted) { active = false; try { await speech.stop(); } catch (_) {} return; }
 
     await startSession();
+    if (!mounted) { active = false; try { await speech.stop(); } catch (_) {} return; }
 
     // A slim "listening" sheet — the text appears in the note above it, live.
     await showModalBottomSheet<void>(
@@ -534,8 +537,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
     active = false;
     try { await speech.stop(); } catch (_) {}
     // Drop an empty dictation item if nothing was said.
-    if (checklist && itemIndex != null && mounted && (_items[itemIndex!].text.trim().isEmpty)) {
-      setState(() => _items.removeAt(itemIndex!));
+    final endIdx = itemIndex;
+    if (checklist && endIdx != null && mounted && _items[endIdx].text.trim().isEmpty) {
+      setState(() => _items.removeAt(endIdx));
       _disposeItemControllers();
       _buildItemControllers();
     }
