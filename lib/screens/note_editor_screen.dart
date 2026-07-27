@@ -455,11 +455,16 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
     } else {
       base = _body.text;
     }
+    // Text from all finished dictation sessions; `current` = the in-progress
+    // session's latest partial. The note always shows committed + current, so a
+    // new sentence APPENDS after earlier ones instead of replacing them.
     var committed = '';
+    var current = '';
     var active = true;
 
-    // Live-write (committed sessions + the in-progress partial) into the note.
-    void apply(String live) {
+    // Live-write (finished sessions + the in-progress partial) into the note.
+    void render() {
+      final live = current.trim();
       final joined = committed.isEmpty ? live : (live.isEmpty ? committed : '$committed $live');
       if (!mounted) return;
       final idx = itemIndex;
@@ -475,6 +480,15 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
       });
     }
 
+    // Fold the finished session's words into `committed`. Called on every final
+    // result AND when a session ends (many Android recognizers never flag a
+    // final result on a pause), so nothing spoken is ever dropped or overwritten.
+    void commitCurrent() {
+      final t = current.trim();
+      if (t.isNotEmpty) committed = committed.isEmpty ? t : '$committed $t';
+      current = '';
+    }
+
     Future<void> startSession() async {
       if (!active) return;
       try {
@@ -483,10 +497,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
           listenFor: const Duration(minutes: 2),
           pauseFor: const Duration(seconds: 8),
           onResult: (r) {
-            apply(r.recognizedWords);
-            if (r.finalResult && r.recognizedWords.trim().isNotEmpty) {
-              committed = committed.isEmpty ? r.recognizedWords.trim() : '$committed ${r.recognizedWords.trim()}';
-            }
+            current = r.recognizedWords;
+            render();
+            if (r.finalResult) commitCurrent();
           },
         );
       } catch (_) {}
@@ -500,6 +513,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> with WidgetsBinding
         // more than one sentence keeps getting appended.
         onStatus: (status) {
           if (active && !speech.isListening && (status == 'done' || status == 'notListening')) {
+            // Commit this session's words BEFORE restarting so the next sentence
+            // appends after them (don't rely on a final-result flag that may
+            // never arrive on a pause).
+            commitCurrent();
             startSession();
           }
         },
