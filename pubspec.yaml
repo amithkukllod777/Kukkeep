@@ -45,6 +45,15 @@ dev_dependencies:
   flutter_lints: ^4.0.0
   flutter_launcher_icons: ^0.13.0   # generates the launcher icon from the KukLabs logo
 
+# Pin transitive deps to toolchain-compatible versions.
+# jni 1.0.1 (published 2026-07-27) ships an android/build.gradle that calls
+# kotlin(...) in a way this project's Gradle/AGP 9 setup rejects
+# ("Could not find method kotlin() ... on project ':jni'"), which breaks the
+# release build. 1.0.0 — the version every prior green build resolved — is fine.
+# Remove this override once jni ships a build.gradle fix.
+dependency_overrides:
+  jni: 1.0.0
+
 # App launcher icon — generated from the KukLabs "K" mark (run in CI).
 # Kept minimal (legacy square icons) for a reliable release build.
 flutter_launcher_icons:
