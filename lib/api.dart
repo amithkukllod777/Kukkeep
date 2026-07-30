@@ -51,10 +51,24 @@ class Api {
   bool get isLoggedIn => _token != null;
 
   Future<void> load() async {
-    _token = await _secureStorage.read(key: 'kk_token');
-    final p = await SharedPreferences.getInstance();
-    _companyId = p.getInt('kk_company');
-    userName = p.getString('kk_user');
+    // Reading the Keystore-backed token can throw on Android — most commonly a
+    // decryption/KeyStore failure after an app upgrade or OS change (the token
+    // the previous build wrote can no longer be decrypted). That must NEVER
+    // crash startup or wedge the user in a broken state: drop the unreadable
+    // token so the app cleanly falls back to the login screen and a fresh
+    // sign-in can store a new one. (Fixes an install-over-upgrade crash + a
+    // repeated-logout loop reported on some devices.)
+    try {
+      _token = await _secureStorage.read(key: 'kk_token');
+    } catch (_) {
+      _token = null;
+      try { await _secureStorage.delete(key: 'kk_token'); } catch (_) {}
+    }
+    try {
+      final p = await SharedPreferences.getInstance();
+      _companyId = p.getInt('kk_company');
+      userName = p.getString('kk_user');
+    } catch (_) {/* prefs unreadable — treat as a first run */}
   }
 
   Future<void> _save() async {
