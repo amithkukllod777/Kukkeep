@@ -261,6 +261,34 @@ class Api {
     await _save();
   }
 
+  // ── Sign in with Apple (native iOS flow — App Store Guideline 4.8) ──
+  /// Trade a native Apple identity token (from the Apple sign-in sheet) for a
+  /// Kuklabs Bearer session — the SAME 30-day native token as directLogin /
+  /// Google, against the same shared account. `name` is only available on the
+  /// user's FIRST Apple authorization (Apple never sends it again).
+  Future<void> appleNative({required String identityToken, String? name}) async {
+    final res = await http.post(
+        Uri.parse('$base/api/auth/apple/native'),
+        headers: {'content-type': 'application/json'},
+        body: jsonEncode({
+          'identityToken': identityToken,
+          if (name != null && name.isNotEmpty) 'name': name,
+        }))
+        .timeout(_kRequestTimeout);
+    dynamic b;
+    try { b = jsonDecode(res.body); } catch (_) {
+      throw ApiError('Apple sign-in failed. Please try again.');
+    }
+    final token = b is Map ? b['token'] : null;
+    if (token == null) {
+      final msg = (b is Map ? b['error'] : null)?.toString();
+      throw ApiError(msg == null || msg.isEmpty ? 'Apple sign-in failed. Please try again.' : msg);
+    }
+    _token = token.toString();
+    userName = (b['name'] ?? '').toString();
+    await _save();
+  }
+
   String _slugify(String name) {
     final base = name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'(^-|-$)'), '');
     final suffix = DateTime.now().millisecondsSinceEpoch.toRadixString(36);

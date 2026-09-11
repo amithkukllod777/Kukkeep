@@ -1,7 +1,7 @@
 name: kukkeep
 description: KukKeep — native notes, checklists & reminders (Flutter). Connects to your KukLabs account.
 publish_to: 'none'
-version: 2.7.7+67
+version: 2.7.8+68
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -38,6 +38,7 @@ dependencies:
   receive_sharing_intent: ">=1.8.0 <1.9.0"  # receive text/URLs into a new note. Pin <1.9.0: 1.9.0 needs compileSdk 37 (AGP 9.0.1 max is 36); 1.8.1 targets 36.
   home_widget: ^0.6.0                     # home-screen widget: latest note + quick open (Keep parity)
   speech_to_text: ^7.0.0                  # on-device voice typing (dictate → text; no API key/cost)
+  sign_in_with_apple: ^6.1.0              # "Sign in with Apple" (iOS) — App Store Guideline 4.8 (Google present ⇒ Apple required)
 
 dev_dependencies:
   flutter_test:

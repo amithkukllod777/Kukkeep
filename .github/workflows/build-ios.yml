@@ -110,6 +110,22 @@ jobs:
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 1[0-4]\(\.[0-9]*\)*;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/Runner.xcodeproj/project.pbxproj
           echo "--- Podfile head ---"; head -5 "$POD"
 
+      - name: Enable "Sign in with Apple" entitlement (App Store Guideline 4.8)
+        # The native Sign in with Apple flow needs this entitlement; the App ID
+        # com.kuklabs.keep must have the "Sign In with Apple" capability enabled
+        # in the Apple Developer portal and the provisioning profile regenerated
+        # to include it (CODE_SIGN_ENTITLEMENTS is wired in the signing step).
+        run: |
+          {
+            printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'
+            printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
+            printf '%s\n' '<plist version="1.0"><dict>'
+            printf '%s\n' '<key>com.apple.developer.applesignin</key>'
+            printf '%s\n' '<array><string>Default</string></array>'
+            printf '%s\n' '</dict></plist>'
+          } > ios/Runner/Runner.entitlements
+          echo "--- Runner.entitlements ---"; cat ios/Runner/Runner.entitlements
+
       - name: Pub get
         run: flutter pub get
 
@@ -151,7 +167,7 @@ jobs:
         env:
           TEAM: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          printf '\nCODE_SIGN_STYLE = Manual\nDEVELOPMENT_TEAM = %s\nPROVISIONING_PROFILE_SPECIFIER = %s\nCODE_SIGN_IDENTITY = Apple Distribution\n' "$TEAM" "$PROFILE_NAME" >> ios/Flutter/Release.xcconfig
+          printf '\nCODE_SIGN_STYLE = Manual\nDEVELOPMENT_TEAM = %s\nPROVISIONING_PROFILE_SPECIFIER = %s\nCODE_SIGN_IDENTITY = Apple Distribution\nCODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements\n' "$TEAM" "$PROFILE_NAME" >> ios/Flutter/Release.xcconfig
           {
             printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'
             printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
