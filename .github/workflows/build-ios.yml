@@ -99,15 +99,15 @@ jobs:
           PB "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string kukkeep" 2>/dev/null || true
           echo "--- Info.plist ---"; plutil -p "$PL" | sed -n '1,80p'
 
-      - name: Set iOS deployment target to 13.0 (Firebase 3.x / speech_to_text need 13+)
+      - name: Set iOS deployment target to 15.0 (Apple requires MinimumOSVersion 15+ from Spring 2027)
         run: |
           POD=ios/Podfile
           if grep -q "platform :ios" "$POD"; then
-            sed -i '' "s/# *platform :ios.*/platform :ios, '13.0'/" "$POD"
+            sed -i '' "s/# *platform :ios.*/platform :ios, '15.0'/" "$POD"
           else
-            printf "platform :ios, '13.0'\n%s" "$(cat "$POD")" > "$POD"
+            printf "platform :ios, '15.0'\n%s" "$(cat "$POD")" > "$POD"
           fi
-          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 1[0-2]\(\.[0-9]*\)*;/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/g' ios/Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 1[0-4]\(\.[0-9]*\)*;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/Runner.xcodeproj/project.pbxproj
           echo "--- Podfile head ---"; head -5 "$POD"
 
       - name: Pub get
