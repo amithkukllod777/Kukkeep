@@ -1,0 +1,220 @@
+name: Build KukKeep iOS (IPA)
+
+# Builds the native Flutter KukKeep app for iOS and publishes the signed IPA to
+# the "ios-latest" release; optionally uploads to TestFlight. Like the Android
+# workflows, the ios/ scaffolding is generated fresh here by `flutter create`
+# (only lib/ + assets + pubspec are committed to the repo).
+#
+# ⚠️ iOS REQUIRES Apple code-signing — unlike Android we cannot self-sign. Add
+# these repo Secrets (Settings → Secrets and variables → Actions) for a SIGNED
+# build. WITHOUT them the workflow still runs an UNSIGNED compile-check (it
+# proves the app builds for iOS, but the result cannot be installed on a device):
+#
+#   IOS_DIST_CERT_BASE64          base64 of your Apple Distribution cert (.p12,
+#                                   exported WITH its private key)
+#                                   →  base64 -i dist.p12 | pbcopy
+#   IOS_DIST_CERT_PASSWORD        the .p12 export password
+#   IOS_PROVISION_PROFILE_BASE64  base64 of the App Store provisioning profile
+#                                   (.mobileprovision) for com.kuklabs.keep
+#                                   →  base64 -i profile.mobileprovision | pbcopy
+#   APPLE_TEAM_ID                 your 10-character Apple Developer Team ID
+#
+# Optional — enables automatic TestFlight upload (App Store Connect API key):
+#   APPSTORE_API_KEY_ID           the key ID (e.g. ABCD1234EF)
+#   APPSTORE_API_ISSUER_ID        the issuer ID (a UUID)
+#   APPSTORE_API_KEY_BASE64       base64 of the AuthKey_<KEYID>.p8
+#
+# One-time in the Apple Developer portal BEFORE exporting the above:
+#   1) Identifiers → register App ID  com.kuklabs.keep
+#   2) Certificates → create an "Apple Distribution" cert; export as .p12 (incl. key)
+#   3) Profiles → create an App Store distribution profile for that App ID
+#   4) App Store Connect → create the app record (needed for TestFlight/App Store)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect signing availability
+        id: signing
+        env:
+          CERT: ${{ secrets.IOS_DIST_CERT_BASE64 }}
+          PROFILE: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+          TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          API_KEY: ${{ secrets.APPSTORE_API_KEY_BASE64 }}
+        run: |
+          if [ -n "$CERT" ] && [ -n "$PROFILE" ] && [ -n "$TEAM" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Signing secrets present — building a SIGNED IPA."
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Signing secrets missing — building an UNSIGNED compile-check only (NOT installable). Add IOS_DIST_CERT_BASE64, IOS_DIST_CERT_PASSWORD, IOS_PROVISION_PROFILE_BASE64 and APPLE_TEAM_ID for a real IPA."
+          fi
+          if [ -n "$API_KEY" ]; then echo "testflight=true" >> "$GITHUB_OUTPUT"; else echo "testflight=false" >> "$GITHUB_OUTPUT"; fi
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.4"   # same pin as the Android workflows
+          channel: stable
+          cache: true
+
+      - name: Generate iOS scaffolding (keeps lib/ + pubspec)
+        run: flutter create --org com.kuklabs --project-name kukkeep --platforms=ios .
+
+      - name: Set bundle id to com.kuklabs.keep
+        # flutter create --org com.kuklabs --project-name kukkeep yields
+        # com.kuklabs.kukkeep; rewrite the 3 Runner configs to com.kuklabs.keep.
+        # (RunnerTests keeps its own .RunnerTests suffix — it isn't archived.)
+        run: |
+          PB=ios/Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/PRODUCT_BUNDLE_IDENTIFIER = com\.kuklabs\.kukkeep;/PRODUCT_BUNDLE_IDENTIFIER = com.kuklabs.keep;/g' "$PB"
+          echo "--- bundle ids ---"; grep -n 'PRODUCT_BUNDLE_IDENTIFIER' "$PB" || true
+
+      - name: Set display name + Info.plist keys (permissions, URL scheme)
+        run: |
+          PL=ios/Runner/Info.plist
+          PB() { /usr/libexec/PlistBuddy -c "$1" "$PL"; }
+          # Display name under the icon.
+          PB "Set :CFBundleDisplayName Kuk Keep" 2>/dev/null || PB "Add :CFBundleDisplayName string Kuk Keep"
+          # Usage descriptions — iOS HARD-CRASHES the first time an API is used if
+          # its description string is missing (camera/photos/mic/speech).
+          add() { PB "Add :$1 string $2" 2>/dev/null || PB "Set :$1 $2"; }
+          add NSCameraUsageDescription "KukKeep uses the camera to attach photos to your notes."
+          add NSPhotoLibraryUsageDescription "KukKeep needs photo access to attach images to your notes."
+          add NSMicrophoneUsageDescription "KukKeep uses the microphone to record voice notes and for voice typing."
+          add NSSpeechRecognitionUsageDescription "KukKeep uses speech recognition for on-device voice typing."
+          # Custom URL scheme kukkeep:// — the Google sign-in deep-link return.
+          PB "Add :CFBundleURLTypes array" 2>/dev/null || true
+          PB "Add :CFBundleURLTypes:0 dict" 2>/dev/null || true
+          PB "Add :CFBundleURLTypes:0:CFBundleTypeRole string Editor" 2>/dev/null || true
+          PB "Add :CFBundleURLTypes:0:CFBundleURLName string com.kuklabs.keep" 2>/dev/null || true
+          PB "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" 2>/dev/null || true
+          PB "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string kukkeep" 2>/dev/null || true
+          echo "--- Info.plist ---"; plutil -p "$PL" | sed -n '1,80p'
+
+      - name: Set iOS deployment target to 13.0 (Firebase 3.x / speech_to_text need 13+)
+        run: |
+          POD=ios/Podfile
+          if grep -q "platform :ios" "$POD"; then
+            sed -i '' "s/# *platform :ios.*/platform :ios, '13.0'/" "$POD"
+          else
+            printf "platform :ios, '13.0'\n%s" "$(cat "$POD")" > "$POD"
+          fi
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 1[0-2]\(\.[0-9]*\)*;/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/g' ios/Runner.xcodeproj/project.pbxproj
+          echo "--- Podfile head ---"; head -5 "$POD"
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Generate iOS app icon (non-fatal)
+        run: dart run flutter_launcher_icons -f flutter_launcher_icons_ios.yaml || echo "::warning::iOS icon generation failed — falling back to the default Flutter icon."
+
+      - name: Install signing certificate + provisioning profile
+        if: steps.signing.outputs.signed == 'true'
+        env:
+          CERT_B64: ${{ secrets.IOS_DIST_CERT_BASE64 }}
+          CERT_PW: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          PROFILE_B64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+        run: |
+          set -e
+          KEYCHAIN="$RUNNER_TEMP/app.keychain-db"
+          KEYCHAIN_PW="$(openssl rand -base64 24)"
+          CERT_PATH="$RUNNER_TEMP/dist.p12"
+          PROFILE_PATH="$RUNNER_TEMP/profile.mobileprovision"
+          echo -n "$CERT_B64" | base64 --decode > "$CERT_PATH"
+          echo -n "$PROFILE_B64" | base64 --decode > "$PROFILE_PATH"
+          security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security import "$CERT_PATH" -P "$CERT_PW" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security list-keychain -d user -s "$KEYCHAIN" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PW" "$KEYCHAIN" >/dev/null
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          UUID="$(security cms -D -i "$PROFILE_PATH" | plutil -extract UUID raw -)"
+          NAME="$(security cms -D -i "$PROFILE_PATH" | plutil -extract Name raw -)"
+          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$UUID.mobileprovision"
+          echo "PROFILE_NAME=$NAME" >> "$GITHUB_ENV"
+          echo "Installed provisioning profile: $NAME ($UUID)"
+
+      - name: Configure manual signing + export options
+        if: steps.signing.outputs.signed == 'true'
+        env:
+          TEAM: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          printf '\nCODE_SIGN_STYLE = Manual\nDEVELOPMENT_TEAM = %s\nPROVISIONING_PROFILE_SPECIFIER = %s\nCODE_SIGN_IDENTITY = Apple Distribution\n' "$TEAM" "$PROFILE_NAME" >> ios/Flutter/Release.xcconfig
+          {
+            printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'
+            printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
+            printf '%s\n' '<plist version="1.0"><dict>'
+            printf '%s\n' '<key>method</key><string>app-store</string>'
+            printf '%s\n' "<key>teamID</key><string>$TEAM</string>"
+            printf '%s\n' '<key>signingStyle</key><string>manual</string>'
+            printf '%s\n' '<key>uploadBitcode</key><false/>'
+            printf '%s\n' '<key>uploadSymbols</key><true/>'
+            printf '%s\n' '<key>provisioningProfiles</key><dict>'
+            printf '%s\n' "<key>com.kuklabs.keep</key><string>$PROFILE_NAME</string>"
+            printf '%s\n' '</dict></dict></plist>'
+          } > ios/ExportOptions.plist
+          echo "--- Release.xcconfig tail ---"; tail -6 ios/Flutter/Release.xcconfig
+          echo "--- ExportOptions.plist ---"; cat ios/ExportOptions.plist
+
+      - name: Build signed IPA
+        if: steps.signing.outputs.signed == 'true'
+        run: flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
+
+      - name: Build unsigned (compile-check only)
+        if: steps.signing.outputs.signed != 'true'
+        run: flutter build ios --release --no-codesign
+
+      - name: Upload to TestFlight (optional)
+        if: steps.signing.outputs.signed == 'true' && steps.signing.outputs.testflight == 'true'
+        env:
+          KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          ISSUER: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+          KEY_B64: ${{ secrets.APPSTORE_API_KEY_BASE64 }}
+        run: |
+          mkdir -p ~/private_keys
+          echo -n "$KEY_B64" | base64 --decode > "$HOME/private_keys/AuthKey_$KEY_ID.p8"
+          IPA="$(ls build/ios/ipa/*.ipa | head -1)"
+          echo "Uploading $IPA to TestFlight…"
+          xcrun altool --upload-app -f "$IPA" -t ios --apiKey "$KEY_ID" --apiIssuer "$ISSUER"
+
+      - name: Stage IPA
+        if: steps.signing.outputs.signed == 'true'
+        run: |
+          mkdir -p out
+          IPA="$(ls build/ios/ipa/*.ipa | head -1)"
+          cp "$IPA" out/KukKeep-ios.ipa
+          cp "$IPA" "out/KukKeep-ios-r${{ github.run_number }}.ipa"
+
+      - name: Publish IPA to "ios-latest" release
+        if: steps.signing.outputs.signed == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-latest
+          name: KukKeep (iOS, latest)
+          body: |
+            Signed iOS build of KukKeep (com.kuklabs.keep). Distribute via
+            TestFlight (auto-uploaded when the App Store Connect API-key secrets
+            are set), or install the .ipa via Apple Configurator / your MDM.
+            Build r${{ github.run_number }}.
+          files: |
+            out/KukKeep-ios.ipa
+            out/KukKeep-ios-r${{ github.run_number }}.ipa
+
+      - name: Upload unsigned build artifact (compile-check)
+        if: steps.signing.outputs.signed != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kukkeep-ios-unsigned-r${{ github.run_number }}
+          path: build/ios/iphoneos

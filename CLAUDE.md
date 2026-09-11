@@ -49,9 +49,10 @@ policy, profile structure or version-display format.
 
 ## Build (GitHub Actions → releases)
 > 🔴 **GOLDEN RULE — never build unless the user explicitly asks.** Do NOT
-> trigger the APK (`build-flutter-apk.yml`) or AAB (`build-play-aab.yml`)
-> workflows on your own initiative. Implement, commit and push freely, but only
-> run a build when the user asks for one ("build karo", "apk do", "aab do").
+> trigger the APK (`build-flutter-apk.yml`), AAB (`build-play-aab.yml`) or iOS
+> (`build-ios.yml`) workflows on your own initiative. Implement, commit and push
+> freely, but only run a build when the user asks for one ("build karo", "apk
+> do", "aab do", "ios build").
 - **APK** (testing): run `build-flutter-apk.yml` → published to the
   `flutter-latest` release.
 - **Signed AAB** (Play Store): run `build-play-aab.yml` → published to the
@@ -59,6 +60,18 @@ policy, profile structure or version-display format.
   `KUKKEEP_KEYSTORE_BASE64`, `KUKKEEP_STORE_PASSWORD`, `KUKKEEP_KEY_PASSWORD`,
   `KUKKEEP_KEY_ALIAS`. The upload keystore is stable — never regenerate it, and
   never commit it.
+- **iOS IPA** (App Store / TestFlight): run `build-ios.yml` (macOS runner) →
+  signed IPA published to the `ios-latest` release, auto-uploaded to TestFlight
+  when the App Store Connect key secrets are set. iOS **cannot** be self-signed
+  like Android — it needs an Apple Developer account + these repo Secrets:
+  `IOS_DIST_CERT_BASE64`, `IOS_DIST_CERT_PASSWORD`, `IOS_PROVISION_PROFILE_BASE64`,
+  `APPLE_TEAM_ID` (+ optional `APPSTORE_API_KEY_ID` / `APPSTORE_API_ISSUER_ID` /
+  `APPSTORE_API_KEY_BASE64` for TestFlight upload). Without them the workflow
+  runs an unsigned compile-check only. The `ios/` scaffolding is generated fresh
+  in CI (like `android/`); iOS icons come from `flutter_launcher_icons_ios.yaml`.
+  Firebase on iOS additionally needs a `GoogleService-Info.plist` (register an
+  iOS app in the Firebase console) — until then push/Crashlytics stay off, but
+  the app runs fine (init is guarded).
 - Bump `version:` in `pubspec.yaml` (and `kAppVersion` in `lib/note_colors.dart`)
   each release; the `+N` build number must increase for every Play upload.
 

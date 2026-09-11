@@ -1,0 +1,9 @@
+# iOS-only launcher-icon config (used by build-ios.yml via `-f`). Kept separate
+# from pubspec.yaml (which is android-only) so the Android workflow, whose
+# generated tree has no ios/ folder, never tries to write iOS icons.
+# remove_alpha_ios: App Store rejects icons with an alpha channel — flatten it.
+flutter_launcher_icons:
+  android: false
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/icon.png"
