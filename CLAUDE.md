@@ -2,8 +2,9 @@
 
 This repository is the **native KukKeep mobile app** (Flutter/Android). The
 pubspec.yaml is at the repo root; the native `android/` scaffolding is generated
-fresh in CI by `flutter create`, so only `lib/`, `assets/`, `pubspec.yaml` and
-`google-services.json` are committed here.
+fresh in CI by `flutter create`, so only `lib/`, `assets/`, `pubspec.yaml`,
+`google-services.json` (Android Firebase) and `GoogleService-Info.plist` (iOS
+Firebase) are committed here.
 
 Package id: `com.kuklabs.keep` · Domain: keep.kuklabs.com
 
@@ -69,9 +70,12 @@ policy, profile structure or version-display format.
   `APPSTORE_API_KEY_BASE64` for TestFlight upload). Without them the workflow
   runs an unsigned compile-check only. The `ios/` scaffolding is generated fresh
   in CI (like `android/`); iOS icons come from `flutter_launcher_icons_ios.yaml`.
-  Firebase on iOS additionally needs a `GoogleService-Info.plist` (register an
-  iOS app in the Firebase console) — until then push/Crashlytics stay off, but
-  the app runs fine (init is guarded).
+  Firebase on iOS: `GoogleService-Info.plist` (project `kukchat-b6402`, bundle
+  `com.kuklabs.keep`) is committed at the repo root and `build-ios.yml` copies it
+  into `ios/Runner/` and adds it to the Runner target (via the `xcodeproj` gem),
+  so push/Crashlytics work on iOS. (Firebase init is still guarded, so a missing
+  plist would never crash the app.) iOS push also needs the APNs auth key
+  configured server-side — see kukbook-erp's `APNS_*` secrets.
 - Bump `version:` in `pubspec.yaml` (and `kAppVersion` in `lib/note_colors.dart`)
   each release; the `+N` build number must increase for every Play upload.
 

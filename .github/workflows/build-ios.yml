@@ -126,6 +126,30 @@ jobs:
           } > ios/Runner/Runner.entitlements
           echo "--- Runner.entitlements ---"; cat ios/Runner/Runner.entitlements
 
+      - name: Add Firebase iOS config (GoogleService-Info.plist)
+        # The committed GoogleService-Info.plist (project kukchat-b6402, bundle
+        # com.kuklabs.keep) is the iOS counterpart of google-services.json. Copy it
+        # into ios/Runner/ AND add it to the Runner target's resources so it ships
+        # in the app bundle — firebase_core reads it there at launch. Without this,
+        # Firebase.initializeApp() finds nothing and push/Crashlytics stay off (the
+        # app still runs — init is guarded).
+        run: |
+          cp GoogleService-Info.plist ios/Runner/GoogleService-Info.plist
+          gem list -i xcodeproj >/dev/null 2>&1 || sudo gem install xcodeproj --no-document
+          ruby - <<'RUBY'
+          require 'xcodeproj'
+          proj = Xcodeproj::Project.open('ios/Runner.xcodeproj')
+          target = proj.targets.find { |t| t.name == 'Runner' }
+          group = proj.main_group.find_subpath('Runner', true)
+          unless group.files.any? { |f| f.display_name == 'GoogleService-Info.plist' }
+            ref = group.new_reference('GoogleService-Info.plist')
+            target.add_resources([ref])
+          end
+          proj.save
+          puts 'GoogleService-Info.plist wired into Runner target'
+          RUBY
+          echo "--- verify (should be >0) ---"; grep -c 'GoogleService-Info.plist' ios/Runner.xcodeproj/project.pbxproj || true
+
       - name: Pub get
         run: flutter pub get
 
