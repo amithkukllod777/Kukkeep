@@ -268,7 +268,7 @@ class Api {
   /// user's FIRST Apple authorization (Apple never sends it again).
   Future<void> appleNative({required String identityToken, String? name}) async {
     final res = await http.post(
-        Uri.parse('$base/api/auth/apple/native'),
+        Uri.parse('$base/api/auth/apple/native-exchange'),
         headers: {'content-type': 'application/json'},
         body: jsonEncode({
           'identityToken': identityToken,
