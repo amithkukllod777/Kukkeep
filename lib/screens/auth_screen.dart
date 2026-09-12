@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../api.dart';
+import '../apple_auth.dart';
 import '../auth_messages.dart';
 import '../google_auth.dart';
 import '../models.dart';
@@ -212,6 +213,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       _orDivider(),
                       SizedBox(height: gap),
                       const GoogleSignInButton(),
+                      const AppleSignInButton(), // iOS-only (App Store Guideline 4.8)
                       const SizedBox(height: 2),
                       _legal(),
                       SizedBox(height: tight ? 6 : 10),

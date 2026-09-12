@@ -672,8 +672,8 @@ const Map<String, Map<String, String>> _collab = {
 
 // Voice-transcription strings. tr() falls back to English.
 const Map<String, Map<String, String>> _stt = {
-  'en': {'transcribe': 'Transcribe', 'transcribed': 'Transcribed', 'no_speech': 'No speech detected', 'voice_typing': 'Voice typing', 'listening': 'Listening…', 'stop': 'Stop', 'speech_unavailable': 'Speech recognition unavailable on this device'},
-  'hi': {'transcribe': 'लिप्यंतरण', 'transcribed': 'लिप्यंतरण हो गया', 'no_speech': 'कोई आवाज़ नहीं मिली', 'voice_typing': 'बोलकर लिखें', 'listening': 'सुन रहे हैं…', 'stop': 'रोकें', 'speech_unavailable': 'इस डिवाइस पर वॉइस पहचान उपलब्ध नहीं'},
+  'en': {'transcribe': 'Transcribe', 'transcribed': 'Transcribed', 'no_speech': 'No speech detected', 'voice_typing': 'Voice typing', 'listening': 'Listening…', 'stop': 'Stop', 'speech_unavailable': 'Speech recognition unavailable on this device', 'voice_typing_hint': 'Keep speaking — your words appear in the note. Tap Stop when done.'},
+  'hi': {'transcribe': 'लिप्यंतरण', 'transcribed': 'लिप्यंतरण हो गया', 'no_speech': 'कोई आवाज़ नहीं मिली', 'voice_typing': 'बोलकर लिखें', 'listening': 'सुन रहे हैं…', 'stop': 'रोकें', 'speech_unavailable': 'इस डिवाइस पर वॉइस पहचान उपलब्ध नहीं', 'voice_typing_hint': 'बोलते रहें — शब्द नोट में लिखते जाएँगे। हो जाए तो Stop दबाएँ।'},
   'bn': {'transcribe': 'প্রতিলিপি', 'transcribed': 'প্রতিলিপি হয়েছে', 'no_speech': 'কোনো কথা পাওয়া যায়নি', 'voice_typing': 'কণ্ঠে টাইপ', 'listening': 'শুনছি…', 'stop': 'থামুন', 'speech_unavailable': 'এই ডিভাইসে ভয়েস শনাক্তকরণ নেই'},
   'es': {'transcribe': 'Transcribir', 'transcribed': 'Transcrito', 'no_speech': 'No se detectó voz', 'voice_typing': 'Dictado de voz', 'listening': 'Escuchando…', 'stop': 'Detener', 'speech_unavailable': 'Reconocimiento de voz no disponible en este dispositivo'},
   'pt': {'transcribe': 'Transcrever', 'transcribed': 'Transcrito', 'no_speech': 'Nenhuma fala detectada', 'voice_typing': 'Ditado por voz', 'listening': 'Ouvindo…', 'stop': 'Parar', 'speech_unavailable': 'Reconhecimento de voz indisponível neste aparelho'},

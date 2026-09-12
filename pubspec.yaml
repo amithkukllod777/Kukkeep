@@ -1,7 +1,7 @@
 name: kukkeep
 description: KukKeep — native notes, checklists & reminders (Flutter). Connects to your KukLabs account.
 publish_to: 'none'
-version: 2.7.2+62
+version: 2.7.8+68
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -38,12 +38,22 @@ dependencies:
   receive_sharing_intent: ">=1.8.0 <1.9.0"  # receive text/URLs into a new note. Pin <1.9.0: 1.9.0 needs compileSdk 37 (AGP 9.0.1 max is 36); 1.8.1 targets 36.
   home_widget: ^0.6.0                     # home-screen widget: latest note + quick open (Keep parity)
   speech_to_text: ^7.0.0                  # on-device voice typing (dictate → text; no API key/cost)
+  sign_in_with_apple: ^6.1.0              # "Sign in with Apple" (iOS) — App Store Guideline 4.8 (Google present ⇒ Apple required)
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
   flutter_launcher_icons: ^0.13.0   # generates the launcher icon from the KukLabs logo
+
+# Pin transitive deps to toolchain-compatible versions.
+# jni 1.0.1 (published 2026-07-27) ships an android/build.gradle that calls
+# kotlin(...) in a way this project's Gradle/AGP 9 setup rejects
+# ("Could not find method kotlin() ... on project ':jni'"), which breaks the
+# release build. 1.0.0 — the version every prior green build resolved — is fine.
+# Remove this override once jni ships a build.gradle fix.
+dependency_overrides:
+  jni: 1.0.0
 
 # App launcher icon — generated from the KukLabs "K" mark (run in CI).
 # Kept minimal (legacy square icons) for a reliable release build.

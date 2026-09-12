@@ -59,10 +59,14 @@ void main() {
     return true;
   };
   runZonedGuarded(() async {
-    await Api.instance.load();
-    await loadTheme();
-    await LocaleController.load();
-    await Notifications.instance.loadPrefs();
+    // Pre-init steps must NEVER stop the UI from drawing. Each is guarded on its
+    // own so that if one throws (e.g. a Keystore read error, a corrupt prefs
+    // store), runApp() still runs and the app opens instead of dying on the
+    // launch screen — which Android surfaces as "this app has a bug".
+    try { await Api.instance.load(); } catch (e, s) { _recordError(e, s); }
+    try { await loadTheme(); } catch (e, s) { _recordError(e, s); }
+    try { await LocaleController.load(); } catch (e, s) { _recordError(e, s); }
+    try { await Notifications.instance.loadPrefs(); } catch (e, s) { _recordError(e, s); }
     runApp(const KukKeepApp());
     // Notifications + Firebase push are optional and must NEVER block the first
     // frame — init them after the UI is up (a hang/failure here must not blank the
